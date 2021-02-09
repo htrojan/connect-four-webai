@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "serve": "webpack serve",
+    "build": "webpack"
+  },
+  "devDependencies": {
+    "@wasm-tool/wasm-pack-plugin": "^1.3.2",
+    "webpack": "^5.21.2",
+    "webpack-cli": "^4.5.0",
+    "webpack-dev-server": "^3.11.2"
+  },
+  "dependencies": {
+    "copy-webpack-plugin": "^7.0.0",
+    "html-webpack-plugin": "^5.0.0"
+  }
+}
