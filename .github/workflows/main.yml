@@ -35,7 +35,7 @@ jobs:
         id: image_tags
         shell: bash
         run: |
-          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-${{ inputs.sha_size }})
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
           echo "::set-output name=sha::commit:$SHORT_SHA"
       - name: Register doctl
         uses: digitalocean/action-doctl@v2.1.0
@@ -52,5 +52,5 @@ jobs:
         run: doctl registry login --expiry-seconds 600
       - name: Upload image to registry
         shell: bash
-        run: docker push ${{ DIGITALOCEAN_DOCKER_REPO }}
+        run: docker push ${{ secrets.DIGITALOCEAN_DOCKER_REPO }}
 
