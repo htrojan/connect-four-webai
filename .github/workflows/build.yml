@@ -27,3 +27,8 @@ jobs:
         cd www
         npm install
         npm run build
+    - name: upload artifact
+      uses: actions/upload-artifact@v2
+      with: 
+        name: build_artifact
+        path: ./dist/
