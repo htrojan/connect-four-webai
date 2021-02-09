@@ -30,11 +30,13 @@ jobs:
           cd www
           npm install
           npm run build
-      - name: upload artifact
-        uses: actions/upload-artifact@v2
-        with: 
-          name: build_artifact
-          path: www/dist/
+
+      - name: Generate Tagged Urls
+        id: image_tags
+        shell: bash
+        run: |
+          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-${{ inputs.sha_size }})
+          echo "::set-output name=sha::commit:$SHORT_SHA"
       - name: Register doctl
         uses: digitalocean/action-doctl@v2.1.0
         with:
@@ -42,7 +44,13 @@ jobs:
       - name: Change directory
         run: cd www
       - name: Build dockerfile
-        uses: ripplr-io/docr-docker-publish@v1
-        with:
-          image_path: registry.digitalocean.com/lobbi44/connect-four
+        shell: bash
+        working-directory: ./www
+        run: docker build . -t ${{ steps.image_tags.outputs.sha }} -t latest
+      - name: Login to registry
+        shell: bash
+        run: doctl registry login --expiry-seconds 600
+      - name: Upload image to registry
+        shell: bash
+        run: docker push ${{ DIGITALOCEAN_DOCKER_REPO }}
 
