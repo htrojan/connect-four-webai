@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
-          echo "::set-output name=sha::${{ secrets.DIGITALOCEAN_DOCKER_REPO }}:$SHORT_SHA"
+          echo "::set-output name=sha::${{ secrets.DIGITALOCEAN_DOCKER_REPO }}/connect-four:$SHORT_SHA"
       - name: Register doctl
         uses: digitalocean/action-doctl@v2.1.0
         with:
@@ -46,7 +46,7 @@ jobs:
       - name: Build dockerfile
         shell: bash
         working-directory: ./www
-        run: docker build . -t ${{ steps.image_tags.outputs.sha }} -t ${{ secrets.DIGITALOCEAN_DOCKER_REPO }}:latest
+        run: docker build . -t ${{ secrets.DIGITALOCEAN_DOCKER_REPO }}/connect-four:latest -t ${{ steps.image_tags.outputs.sha }}
       - name: Login to registry
         shell: bash
         run: doctl registry login --expiry-seconds 600
