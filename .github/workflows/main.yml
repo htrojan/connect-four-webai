@@ -19,15 +19,29 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
+      - name: Run tests
+        run: cargo test --verbose
+      - name: setup wasm-pack
+        uses: jetli/wasm-pack-action@v0.3.0
+      - name: setup-node
+        uses: actions/setup-node@v2.1.4
+      - name: build webpage
+        run: |
+          cd www
+          npm install
+          npm run build
+      - name: upload artifact
+        uses: actions/upload-artifact@v2
+        with: 
+          name: build_artifact
+          path: www/dist/
       - name: Register doctl
         uses: digitalocean/action-doctl@v2.1.0
         with:
           token: ${{ secrets.DIGITALOCEAN_API }}
       - name: Download previously built artifact
-        uses: actions/download-artifact@v2.0.8
-        with:
-          name: build
-          path: www/dst
+      - name: Change directory
+        run: cd www
       - name: Build dockerfile
         uses: ripplr-io/docr-docker-publish@v1
         with:
