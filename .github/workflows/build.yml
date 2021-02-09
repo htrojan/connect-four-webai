@@ -1,0 +1,34 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run tests
+      run: cargo test --verbose
+    - name: setup wasm-pack
+      uses: jetli/wasm-pack-action@v0.3.0
+    - name: setup-node
+      uses: actions/setup-node@v2.1.4
+    - name: build webpage
+      run: |
+        cd www
+        npm install
+        npm run build
+    - name: upload artifact
+      uses: actions/upload-artifact@v2
+      with: 
+        name: build_artifact
+        path: www/dist/
