@@ -52,5 +52,5 @@ jobs:
         run: doctl registry login --expiry-seconds 600
       - name: Upload image to registry
         shell: bash
-        run: docker push ${{ secrets.DIGITALOCEAN_DOCKER_REPO }}
+        run: docker push ${{ secrets.DIGITALOCEAN_DOCKER_REPO }}/connect-four
 
