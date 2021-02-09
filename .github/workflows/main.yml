@@ -39,7 +39,6 @@ jobs:
         uses: digitalocean/action-doctl@v2.1.0
         with:
           token: ${{ secrets.DIGITALOCEAN_API }}
-      - name: Download previously built artifact
       - name: Change directory
         run: cd www
       - name: Build dockerfile
