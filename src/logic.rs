@@ -84,6 +84,19 @@ impl GameBoard {
         self.fields[x][y] = field;
     }
 
+    pub fn empty_fields(&self) -> u8 {
+        let mut empty = 0;
+
+        for x in 0..BOARD_WIDTH {
+            for y in 0..BOARD_HEIGHT {
+                if self.fields[x][y] == None {
+                    empty = empty + 1;
+                }
+            }
+        }
+        return empty;
+    }
+
     // Constructs a cloned GameBoard with the new move applied
     pub fn new_with_move(&self, row: usize, player: FieldType) -> Option<GameBoard>{
         // The move has to be a row in the board
@@ -238,6 +251,9 @@ impl BestMove {
 #[wasm_bindgen]
 impl ABSolver {
     pub fn solve(board: &GameBoard, depth: u8, player: FieldType) -> BestMove {
+        let free_fields = board.empty_fields();
+        let depth = u8::min(free_fields, depth);
+
         // As the score always is evaluated for a specific player, both players are maximising
         // --> Both alpha and beta are at -infinity.
         let (score, best_move) =  ABSolver::solve_ab(board, depth, player, i32::MIN+2, i32::MAX-2);
@@ -351,8 +367,8 @@ impl Evaluation {
         }
 
         let mut player_score = (
-            self.computer[0] + 5*self.computer[1] + 10*self.computer[2] + 100000 * self.computer[3]
-                - (self.player[0] + 5*self.player[1] + 10*self.player[2] + 100000 * self.player[3])
+            self.computer[0] + 6*self.computer[1] + 11*self.computer[2] + 100000 * self.computer[3]
+                - (self.player[0] + 6*self.player[1] + 11*self.player[2] + 100000 * self.player[3])
         );
         match player {
             FieldType::Player => {
