@@ -13,16 +13,24 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
+      - name: Install rust nightly
+        run: |
+          rustup install nightly
+          rustup default nightly
       - name: Run tests
         run: cargo test --verbose
       - name: setup wasm-pack
         uses: jetli/wasm-pack-action@v0.3.0
+      - name: Install rust nightly (2)
+        run: |
+          rustup install nightly
+          rustup default nightly
       - name: setup-node
         uses: actions/setup-node@v2.1.4
       - name: build webpage
