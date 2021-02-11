@@ -22,7 +22,7 @@ module.exports = {
     plugins: [
       new WasmPackPlugin({
           crateDirectory: path.resolve(__dirname, "../"),
-          outName: "connect-four-node",
+          outName: "connect_four",
       }),
       new CopyPlugin({
           patterns: [
