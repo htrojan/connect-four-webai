@@ -1,10 +1,12 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::__rt::std::fmt;
 use std::fmt::Formatter;
+use hashbrown::HashMap;
+use std::hash::{Hash, Hasher};
 
 // Connect four dimensions
-pub(crate) const BOARD_WIDTH: usize = 7;
-pub(crate) const BOARD_HEIGHT: usize = 6;
+pub const BOARD_WIDTH: usize = 7;
+pub const BOARD_HEIGHT: usize = 6;
 
 const SEARCH_ORDER: [usize; 7] = [3,2,4,1,5,0,6];
 
@@ -13,8 +15,56 @@ pub struct Direction {
 }
 
 #[wasm_bindgen]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct GameBoard {
     fields: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH],
+}
+
+impl GameBoard {
+    /**
+    Converts the enum array to a byte array with the following layout:
+    - 2 bits per field entry (3 possible states in total)
+    - Each row is represented by 16 bits (2 bytes). This is equivalent to
+      8 possible columns, but is done for simplicity (instead of the 6 real columns)
+
+    **/
+    fn to_bytes(&self) -> [u8; 14] {
+        let mut bytes: [u8; BOARD_WIDTH*2] = [0; BOARD_WIDTH*2];
+
+        for x in 0..BOARD_WIDTH {
+            // Write first byte
+            for y in 0..4 {
+                let to_write = GameBoard::entry_to_num(self.fields[x][y]);
+                let to_write = to_write << y * 2; // Shift the 2bit pattern to its appropriate position
+                bytes[2 * x] = bytes[2 * x] + to_write;
+            }
+            // Write second byte
+            for y in 4..BOARD_HEIGHT {
+                let to_write = GameBoard::entry_to_num(self.fields[x][y]);
+                let to_write = to_write << (y-4) * 2; // Shift the 2bit pattern to its appropriate position
+                bytes[2 * x + 1] = bytes[2 * x + 1] + to_write;
+            }
+        }
+        bytes
+    }
+
+    #[inline]
+    fn entry_to_num(entry: Option<FieldType>) -> u8 {
+        match entry {
+            None => {0}
+            Some(s) => {
+                match s {
+                    FieldType::Computer => 1,
+                    FieldType::Player => 2,
+                }
+            }
+        }
+    }
+}
+impl Hash for GameBoard {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(&self.to_bytes())
+    }
 }
 
 impl fmt::Display for GameBoard {
@@ -230,8 +280,14 @@ impl FieldType {
 }
 
 #[wasm_bindgen]
-pub(crate) struct ABSolver {
+pub struct ABSolver {
 
+}
+
+struct TableEntry {
+    score: Option<i32>,
+    // alpha: i32,
+    // beta: i32,
 }
 
 #[wasm_bindgen]
@@ -253,20 +309,32 @@ impl ABSolver {
     pub fn solve(board: &GameBoard, depth: u8, player: FieldType) -> BestMove {
         let free_fields = board.empty_fields();
         let depth = u8::min(free_fields, depth);
+        let mut trans_table = HashMap::new();
 
         // As the score always is evaluated for a specific player, both players are maximising
         // --> Both alpha and beta are at -infinity.
-        let (score, best_move) =  ABSolver::solve_ab(board, depth, player, i32::MIN+2, i32::MAX-2);
+        let (score, best_move) =  ABSolver::solve_ab(board, depth, player, i32::MIN+2, i32::MAX-2, &mut trans_table);
         return BestMove::new(score.unwrap(), best_move.unwrap());
     }
 
     /***
     Returns the score in an option and the row for the move
      */
-    fn solve_ab(board: &GameBoard, depth: u8, player: FieldType, mut alpha: i32, mut beta: i32) -> (Option<i32>, Option<usize>) {
+    fn solve_ab(board: &GameBoard, depth: u8, player: FieldType, mut alpha: i32, mut beta: i32, table: &mut HashMap<GameBoard, TableEntry>) -> (Option<i32>, Option<usize>) {
         // Evaluate board
         if depth == 0 {
-            let score = board.evaluate().score(&player);
+            let score = table.get(board);
+
+            let score = match score {
+                None => {
+                    let s = board.evaluate().score(&player);
+                    table.insert(*board, TableEntry{score:s});
+                    s
+                },
+                Some(entry) => entry.score
+            };
+
+            // let score = board.evaluate().score(&player);
             // There is no best move. This is the only board. Return none for the best move
             return (score, None);
         }
@@ -277,31 +345,29 @@ impl ABSolver {
         for i in &SEARCH_ORDER {
             let i = *i;
             let new_board = board.new_with_move(i, player);
+
+
             // A return of None marks an invalid board
-            let score: Option<i32> = match new_board {
+            let score = match new_board {
                 None => {
                     // println!("Invalid Board!");
                     continue;}
                 Some(ref board) => {
-                    let (score, me) = ABSolver::solve_ab(board, depth-1, player.opposite(), -beta, -alpha);
-                    score
+                    // Check in transposition table
+                    let trans_move = table.get(board);
+                    match trans_move {
+                        None => {
+                           let (s, _ ) = ABSolver::solve_ab(board, depth-1, player.opposite(), -beta, -alpha, table);
+                           table.insert(*board, TableEntry{score: s});
+                            s
+                        }
+                        Some(entry) => {
+                            entry.score
+                        }
+                    }
                 }
             };
 
-            // if depth == 3 {
-            //     println!("..................");
-            // }
-            // println!("Player: {:?}, Depth: {}, Row: {}, Score: {:?}", player, depth, i, score);
-            // if (depth == 2 && i == 1) {
-            //     match &new_board {
-            //         None => {
-            //             print!("Board = None");}
-            //         Some(b) => {
-            //             // println!("{}", b);
-            //         }
-            //     }
-            //     // println!("This is a stop!");
-            // }
             // If score is None, this node is invalid as both players have won at this point.
             // Reject all children and evaluate boards further up
             match score {
@@ -362,7 +428,7 @@ impl Evaluation {
     **/
     pub fn score(&self, player: &FieldType) -> Option<i32> {
         if self.computer[3] > 0 && self.player[3] > 0 {
-            println!("Score for both players!");
+            // println!("Score for both players!");
             return None;
         }
 
