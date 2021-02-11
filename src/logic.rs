@@ -286,6 +286,8 @@ pub struct ABSolver {
 
 struct TableEntry {
     score: Option<i32>,
+    // alpha: i32,
+    // beta: i32,
 }
 
 #[wasm_bindgen]
@@ -343,31 +345,29 @@ impl ABSolver {
         for i in &SEARCH_ORDER {
             let i = *i;
             let new_board = board.new_with_move(i, player);
+
+
             // A return of None marks an invalid board
-            let score: Option<i32> = match new_board {
+            let score = match new_board {
                 None => {
                     // println!("Invalid Board!");
                     continue;}
                 Some(ref board) => {
-                    let (score, me) = ABSolver::solve_ab(board, depth-1, player.opposite(), -beta, -alpha, table);
-                    score
+                    // Check in transposition table
+                    let trans_move = table.get(board);
+                    match trans_move {
+                        None => {
+                           let (s, _ ) = ABSolver::solve_ab(board, depth-1, player.opposite(), -beta, -alpha, table);
+                           table.insert(*board, TableEntry{score: s});
+                            s
+                        }
+                        Some(entry) => {
+                            entry.score
+                        }
+                    }
                 }
             };
 
-            // if depth == 3 {
-            //     println!("..................");
-            // }
-            // println!("Player: {:?}, Depth: {}, Row: {}, Score: {:?}", player, depth, i, score);
-            // if (depth == 2 && i == 1) {
-            //     match &new_board {
-            //         None => {
-            //             print!("Board = None");}
-            //         Some(b) => {
-            //             // println!("{}", b);
-            //         }
-            //     }
-            //     // println!("This is a stop!");
-            // }
             // If score is None, this node is invalid as both players have won at this point.
             // Reject all children and evaluate boards further up
             match score {
