@@ -70,7 +70,7 @@ const makeMove = function(row) {
     }
 
     GAME_STATE = FieldType.Computer;
-    let move = wasm.ABSolver.solve(board, 9, FieldType.Computer);
+    let move = wasm.ABSolver.solve(board, 11, FieldType.Computer);
     console.log("Score = ", move.score)
     let b_new = board.new_with_move(move.move_row, FieldType.Computer);
     board.free()
