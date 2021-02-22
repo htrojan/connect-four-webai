@@ -1,5 +1,5 @@
 import * as wasm from "../pkg"
-import {FieldType, GameBoard} from "../pkg";
+import {FieldType, GameBoard} from "../pkg/connect_four.js";
 
 const GRID_COLOR = "black";
 
@@ -7,8 +7,8 @@ const canvas = document.getElementById("connect-four-canvas");
 const ctx = canvas.getContext("2d");
 
 // Width and height of Board
-const width = wasm.GameBoard.get_x();
-const height = wasm.GameBoard.get_y();
+const width = GameBoard.get_x();
+const height = GameBoard.get_y();
 
 // Width and height of Cells
 const cellSize = 60;
@@ -21,8 +21,9 @@ let GAME_STATE = FieldType.Player;
 canvas.width = (cellSize + borderWidth) * width + borderWidth
 canvas.height = (cellSize + borderWidth) * height + borderWidth
 
-let board = wasm.GameBoard.empty();
+let board = GameBoard.empty();
 let winner = undefined;
+let last_guess = 3;
 // board = board.new_with_move(0, FieldType.Computer)
 // board = board.new_with_move(1, FieldType.Player)
 
@@ -65,12 +66,19 @@ const makeMove = function(row) {
     board.free();
     board = b;
 
+    drawBoard();
+    console.log("Player made move")
     if (checkWin()) {
         return;
     }
 
+    let date = new Date()
     GAME_STATE = FieldType.Computer;
-    let move = wasm.ABSolver.solve(board, 13, FieldType.Computer);
+    let t1 = new Date().getTime();
+    let move = wasm.ABSolver.solve_mtdf_guessed(board, 13, FieldType.Computer, last_guess);
+    last_guess = move.score;
+    let t2 = new Date().getTime();
+    console.log("Move evaluation took ", (t2-t1), "ms");
     console.log("Score = ", move.score)
     let b_new = board.new_with_move(move.move_row, FieldType.Computer);
     board.free()
@@ -99,6 +107,7 @@ const drawGrid = () => {
 }
 
 const drawBoard = () => {
+    console.log("Drawing board")
     ctx.strokeStyle = "red"
     for (let x = 0; x < width; x++) {
         for (let y = 0; y < height; y++) {

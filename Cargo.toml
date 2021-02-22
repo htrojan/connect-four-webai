@@ -27,7 +27,7 @@ console_error_panic_hook = { version = "0.1.6", optional = true }
 # allocator, however.
 #
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
-wee_alloc = { version = "0.4.5", optional = true }
+#wee_alloc = { version = "0.4.5", optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
@@ -35,7 +35,7 @@ criterion = "0.3.4"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
-opt-level = "s"
+#opt-level = "s"
 
 [[bench]]
 name = "solver"
