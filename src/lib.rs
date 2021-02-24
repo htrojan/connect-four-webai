@@ -1,5 +1,6 @@
 mod utils;
 pub mod logic;
+mod BitBoard;
 
 use wasm_bindgen::prelude::*;
 
