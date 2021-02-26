@@ -1,6 +1,9 @@
+#![feature(crate_visibility_modifier)]
+
 mod utils;
 pub mod logic;
-mod BitBoard;
+pub mod BitBoard;
+mod bit_solver;
 
 use wasm_bindgen::prelude::*;
 

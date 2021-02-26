@@ -38,5 +38,5 @@ criterion = "0.3.4"
 #opt-level = "s"
 
 [[bench]]
-name = "solver"
+name = "benches"
 harness = false
