@@ -35,7 +35,7 @@ criterion = "0.3.4"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
-#opt-level = "s"
+opt-level = 3
 
 [[bench]]
 name = "benches"

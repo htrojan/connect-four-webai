@@ -3,7 +3,7 @@ use crate::logic::{BOARD_WIDTH, BOARD_HEIGHT};
 
 /// Encoding: Column-first-order, 8-bit per column.
 /// That way 2 bits per column (they are 6 fields high) are left unused.
-#[derive(Default)]
+#[derive(Default, Eq, PartialEq, Debug)]
 pub struct BitBoard {
     pub player: u64,
     pub occupied: u64,
@@ -22,6 +22,15 @@ impl BitBoard {
     pub const PLAYABLE_FIELDS: u64 = u64::MAX
         & !(BitBoard::TOP_LINE | (BitBoard::TOP_LINE>>1))
         & !(BitBoard::FIRST_COLUMN<<56);
+
+
+    /// Sets the corresponding field and changes the player
+    pub fn play_field(&self, field: u64) -> BitBoard {
+        BitBoard {
+            player: (self.occupied - self.player),
+            occupied: self.occupied | field
+        }
+    }
 
     /// Constructs a board from a string representing the board.
     /// p is the playing player, o the opponent
@@ -111,6 +120,39 @@ impl BitBoard {
         return winning;
     }
 
+    /// Returns whether the current player has won
+    pub fn has_won(&self) -> bool {
+        BitBoard::is_winning_board(self.player)
+    }
+
+    #[inline]
+    fn is_winning_board(player_position: u64) -> bool {
+        let board = player_position;
+
+        // Check vertical
+        let v = (board<<2) & board;
+        let mut winning= ((v<<1) & v) > 0;
+
+        // Check horizontal
+        let h = (board<<16) & board;
+        winning |= ((h<<8) & h) > 0;
+
+        // Check diagonal up_right
+        let d1 = (board<<18) & board;
+        winning |= ((d1<<9) & d1) > 0;
+
+        // Check diagonal up_left
+        let d2 = (board<<14) & board;
+        winning |= ((d2<<7) & d2) > 0;
+
+        winning
+    }
+
+    /// Returns whether the current player has lost
+    pub fn has_lost(&self) -> bool {
+        BitBoard::is_winning_board(self.occupied - self.player)
+    }
+
     /// Returns a board representing all possible locations
     /// for a new move
     #[inline]
@@ -128,12 +170,52 @@ impl BitBoard {
         possible & BitBoard::PLAYABLE_FIELDS
     }
 
+    /// Returns the next possible move in the column out of all possible moves.
+    /// Returns 0 if no move is possible
+    #[inline]
+    pub fn move_in_row(possible_moves: u64, column: u64) -> u64 {
+        let column_mask = BitBoard::FIRST_COLUMN << (8*column);
+        column_mask & possible_moves
+    }
+
 }
 
 #[cfg(test)]
 mod tests {
     use crate::BitBoard::BitBoard;
     use crate::logic::GameBoard;
+
+    #[test]
+    fn test_play_move() {
+        let board =
+            "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnpcnn
+            nnnpcnn";
+        let board = BitBoard::from_string(board).unwrap();
+
+        let to_play =
+            "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnpnnn
+            nnnnnnn
+            nnnnnnn";
+        let to_play = BitBoard::from_string(to_play).unwrap().player;
+
+        let expected =
+            "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnncnnn
+            nnncpnn
+            nnncpnn";
+        let expected = BitBoard::from_string(expected).unwrap();
+
+        assert_eq!(board.play_field(to_play), expected);
+    }
 
     #[test]
     fn test_board_from_str() {
@@ -195,6 +277,29 @@ mod tests {
     }
 
     #[test]
+    fn test_winning_board_vertical() {
+        let board_1 =
+            "nnnnnnn
+            nnnnnnn
+            npnnnnn
+            npnnnnn
+            npnnnnn
+            npnnnnn";
+        let board_2 =
+            "nnnnnnn
+            nnnnnnn
+            npnnnnn
+            npnnnnn
+            ncnnnnn
+            ncnnnnn";
+        let bits_1 = BitBoard::from_string(board_1).unwrap();
+        let bits_2 = BitBoard::from_string(board_2).unwrap();
+
+        assert!(bits_1.has_won());
+        assert!(!bits_2.has_won());
+    }
+
+    #[test]
     fn test_winning_move_horizontal() {
         let board_1 =
             "nnnnnnn
@@ -236,6 +341,39 @@ mod tests {
     }
 
     #[test]
+    fn test_winning_board_horizontal() {
+        let board_1 =
+            "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            ppppnnn";
+        let board_2 =
+            "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnpppp";
+        let board_3 =
+            "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnpppn";
+        let bits_1 = BitBoard::from_string(board_1).unwrap();
+        let bits_2 = BitBoard::from_string(board_2).unwrap();
+        let bits_3 = BitBoard::from_string(board_3).unwrap();
+
+
+        assert!(bits_1.has_won());
+        assert!(bits_2.has_won());
+        assert!(!bits_3.has_won());
+    }
+
+    #[test]
     fn test_winning_move_up_right() {
         let board_1 =
             "nnnnnnn
@@ -268,6 +406,30 @@ mod tests {
     }
 
     #[test]
+    fn test_winning_board_up_right() {
+        let board_1 =
+            "nnnnnnn
+            nnnnnnn
+            nnnnpnn
+            nnnpnnn
+            nnpnnnn
+            npnnnnn";
+        let board_2 =
+            "nnnnnnp
+            nnnnnpn
+            nnnnpnn
+            nnnpnnn
+            nnpnnnn
+            nnnnnnn";
+        let bits_1 = BitBoard::from_string(board_1).unwrap();
+        let bits_2 = BitBoard::from_string(board_2).unwrap();
+
+
+        assert!(bits_1.has_won());
+        assert!(bits_2.has_won());
+    }
+
+    #[test]
     fn test_winning_move_up_left() {
         let board_1 =
             "nnnnnnn
@@ -297,6 +459,30 @@ mod tests {
 
         assert!(bits_1.is_winning_move(position));
         assert!(bits_2.is_winning_move(position));
+    }
+
+    #[test]
+    fn test_winning_board_up_left() {
+        let board_1 =
+            "nnnnnnn
+            nnnnnnn
+            nnpnnnn
+            nnnpnnn
+            nnnnpnn
+            nnnnnpn";
+        let board_2 =
+            "pnnnnnn
+            npnnnpn
+            nnpnnnn
+            nnnpnnn
+            nnnnnnn
+            nnnnnnn";
+        let bits_1 = BitBoard::from_string(board_1).unwrap();
+        let bits_2 = BitBoard::from_string(board_2).unwrap();
+
+
+        assert!(bits_1.has_won());
+        assert!(bits_2.has_won());
     }
 
     #[test]
