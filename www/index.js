@@ -1,5 +1,7 @@
 import * as wasm from "../pkg"
-import {FieldType, GameBoard} from "../pkg/connect_four.js";
+import {BitBoard, FieldType, GameBoard} from "../pkg";
+
+
 
 const GRID_COLOR = "black";
 
@@ -16,12 +18,12 @@ const cellSize = 60;
 const borderWidth = 3;
 const offset = borderWidth/2;
 
-let GAME_STATE = FieldType.Player;
+let GAME_STATE = FieldType.Opponent;
 
 canvas.width = (cellSize + borderWidth) * width + borderWidth
 canvas.height = (cellSize + borderWidth) * height + borderWidth
 
-let board = GameBoard.empty();
+let board = BitBoard.empty();
 let winner = undefined;
 let last_guess = 3;
 // board = board.new_with_move(0, FieldType.Computer)
@@ -34,59 +36,81 @@ const renderLoop = () => {
 }
 
 const checkWin = function() {
-    winner = board.evaluate().player_win();
-
-    if (winner === FieldType.Player) {
-        console.log("Player won!")
-
-    } else if (winner === FieldType.Computer) {
+    if (board.has_won()) {
         console.log("Computer won!")
+        winner = FieldType.Player;
+        return true;
+    } else if (board.has_lost()) {
+        console.log("Player won!")
+        winner = FieldType.Opponent;
+        return true;
     } else {
         return false;
     }
-    return true;
 }
 
 /**
+ * The player is the computer.
+ * The opponent is the physical player playing the website.
  * @param {number} row
  */
 const makeMove = function(row) {
+    // Game already over
     if (winner !== undefined) {
         return;
     }
+
     // New move is being calculated
-    if (GAME_STATE === FieldType.Computer) {
+    if (GAME_STATE === FieldType.Player) {
         // This shouldn't happen!
         return;
     }
-    let b = board.new_with_move(row, GAME_STATE);
-    if (b === undefined) {
-        return;
-    }
-    board.free();
-    board = b;
 
-    drawBoard();
+    let b = board.play_column(row, FieldType.Opponent);
+    if (b === undefined) {
+        return
+    }
+
+    board.free()
+    board = b
+
+    console.log("Registering opponent move")
+
+    // drawBoard();
     console.log("Player made move")
     if (checkWin()) {
         return;
     }
 
     let date = new Date()
-    GAME_STATE = FieldType.Computer;
+    GAME_STATE = FieldType.Player;
+    console.log("Solving...")
     let t1 = new Date().getTime();
-    let move = wasm.ABSolver.solve_mtdf_guessed(board, 13, FieldType.Computer, last_guess);
-    last_guess = move.score;
+    // let move = wasm.ABSolver.solve_mtdf_guessed(board, 13, FieldType.Opponent, last_guess);
+    let move = 0;
+    console.log("Number of stones: ", board.number_of_stones())
+    if (board.number_of_stones() > 16) {
+        console.log("Solving with higher depth(25) in endgame")
+        move = wasm.solve(board, 25);
+    }
+    else if (board.number_of_stones() > 6) {
+        console.log("Solving with default depth(19)")
+        move = wasm.solve(board, 19);
+    } else {
+        console.log("Solving with reduced depth(13) in earlygame...")
+        move = wasm.solve(board, 13);
+    }
+
     let t2 = new Date().getTime();
+
     console.log("Move evaluation took ", (t2-t1), "ms");
     console.log("Score = ", move.score)
-    let b_new = board.new_with_move(move.move_row, FieldType.Computer);
-    board.free()
-    board = b_new;
-    GAME_STATE = FieldType.Player;
-    if (checkWin()) {
-        return;
-    }
+    // let b_new = board.new_with_move(move.move_row, FieldType.Opponent);
+    board.set_at(move.mov, FieldType.Player)
+
+    GAME_STATE = FieldType.Opponent;
+
+    checkWin();
 }
 
 const drawGrid = () => {
@@ -112,10 +136,10 @@ const drawBoard = () => {
     for (let x = 0; x < width; x++) {
         for (let y = 0; y < height; y++) {
             // Rotate board
-            let field = board.at(x, height - y -1);
+            let field = board.get_at(x, height - y -1);
             if (field !== undefined) {
                 ctx.beginPath();
-                if (field === FieldType.Computer) {
+                if (field === FieldType.Opponent) {
                     ctx.fillStyle = "red";
                 }
                 if (field === FieldType.Player) {

@@ -37,6 +37,9 @@ criterion = "0.3.4"
 # Tell `rustc` to optimize for small code size.
 opt-level = 3
 
+[profile.test]
+opt-level = 3
+
 [[bench]]
 name = "benches"
 harness = false

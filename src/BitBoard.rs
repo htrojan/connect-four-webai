@@ -1,15 +1,121 @@
 use crate::logic;
-use crate::logic::{BOARD_WIDTH, BOARD_HEIGHT};
+use crate::logic::{BOARD_WIDTH, BOARD_HEIGHT, FieldType};
+use wasm_bindgen::prelude::*;
 
 /// Encoding: Column-first-order, 8-bit per column.
 /// That way 2 bits per column (they are 6 fields high) are left unused.
-#[derive(Default, Eq, PartialEq, Debug)]
+#[wasm_bindgen]
+#[derive(Default, Eq, PartialEq, Debug, Copy, Clone)]
 pub struct BitBoard {
     pub player: u64,
     pub occupied: u64,
 }
 
 
+
+#[wasm_bindgen]
+impl BitBoard {
+
+    #[inline]
+    pub fn number_of_stones(&self) -> u32 {
+        self.occupied.count_ones()
+    }
+    pub fn empty() -> BitBoard {
+        BitBoard::default()
+    }
+    /// Plays a stone at the given position without swapping players.
+    /// if player is true, the current player will be played.
+    /// If false the opposing player will be played
+    pub fn set_at_coordinate(&mut self, x: u8, y: u8, field: Option<FieldType>) {
+        let to_play = BitBoard::coordinate_to_field(x,y);
+        self.set_at(to_play, field);
+    }
+
+    pub fn set_at(&mut self, to_play: u64, field: Option<FieldType>) {
+        match field {
+            None => {
+                // Set field to zero for both players
+                self.player & (!to_play);
+                self.occupied & (!to_play);
+            }
+
+            Some(FieldType::Player) => {
+                self.player |= to_play;
+                self.occupied |= to_play;
+            }
+
+            Some(FieldType::Opponent) => {
+                self.occupied |= to_play;
+            }
+        }
+
+    }
+
+    pub fn get_at(&self, x: u8, y: u8) -> Option<FieldType> {
+        let field = BitBoard::coordinate_to_field(x,y);
+        if (self.player & field) > 0 {
+            return Some(FieldType::Player)
+        } else if (self.occupied & field) > 0 {
+            return Some(FieldType::Opponent)
+        }
+
+        None
+    }
+
+    #[inline]
+    fn coordinate_to_field(x: u8, y: u8) -> u64 {
+        let pos = x*8 + y;
+        1<<pos
+    }
+
+    /// Switches the active player represented by the "player" bits
+    pub fn switch_players(&mut self) {
+        let occupied = self.occupied;
+        let player = self.player;
+
+        self.player = occupied - player;
+    }
+
+    /// Returns whether the current player has won
+    pub fn has_won(&self) -> bool {
+        BitBoard::is_winning_board(self.player)
+    }
+
+    /// Returns whether the current player has lost
+    pub fn has_lost(&self) -> bool {
+        BitBoard::is_winning_board(self.occupied - self.player)
+    }
+
+    pub fn is_move_valid(&self, column: u8) -> bool {
+        let all_valid = self.all_possible_moves();
+        BitBoard::move_in_row(all_valid, column as u64) > 0
+    }
+
+    pub fn play_column(&self, column: u8, player: FieldType) -> Option<BitBoard> {
+        let all_valid = self.all_possible_moves();
+        let mov = BitBoard::move_in_row(all_valid, column as u64);
+
+        if mov > 0 {
+            let board = match player {
+                FieldType::Opponent => {
+                    BitBoard {
+                        player: self.player,
+                        occupied: self.occupied | mov
+                    }
+                }
+                FieldType::Player => {
+                    BitBoard {
+                        player: self.player | mov,
+                        occupied: self.occupied | mov
+                    }
+                }
+            };
+            return Some(board);
+        }
+        return None;
+    }
+
+}
 /// Stores the stones of one player in "player".
 /// All occupied fields are marked in "occupied".
 /// -> player2 = !player & occupied
@@ -77,10 +183,6 @@ impl BitBoard {
         Ok(board)
     }
 
-    #[inline]
-    pub fn number_of_stones(&self) -> u32 {
-        self.occupied.count_ones()
-    }
 
     /// Returns if this move would win the game by looking for adjacent rows of three
     pub fn is_winning_move(&self, field: u64) -> bool {
@@ -120,10 +222,7 @@ impl BitBoard {
         return winning;
     }
 
-    /// Returns whether the current player has won
-    pub fn has_won(&self) -> bool {
-        BitBoard::is_winning_board(self.player)
-    }
+
 
     #[inline]
     fn is_winning_board(player_position: u64) -> bool {
@@ -148,10 +247,7 @@ impl BitBoard {
         winning
     }
 
-    /// Returns whether the current player has lost
-    pub fn has_lost(&self) -> bool {
-        BitBoard::is_winning_board(self.occupied - self.player)
-    }
+
 
     /// Returns a board representing all possible locations
     /// for a new move

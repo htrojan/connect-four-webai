@@ -2,7 +2,7 @@ use criterion::*;
 use connect_four::logic::{ABSolver, GameBoard, FieldType, BOARD_HEIGHT, BOARD_WIDTH};
 
 const p: Option<FieldType> = Some(FieldType::Player);
-const c: Option<FieldType> = Some(FieldType::Computer);
+const c: Option<FieldType> = Some(FieldType::Opponent);
 const n: Option<FieldType> = None::<FieldType>;
 
 const fields_endgame01: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH]

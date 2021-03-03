@@ -1,11 +1,40 @@
 use crate::BitBoard::BitBoard;
+use wasm_bindgen::prelude::*;
+use crate::logic::BestMove;
 
 const SEARCH_ORDER: [u64; 7] = [3,2,4,1,5,0,6];
 
+#[wasm_bindgen]
+#[derive(Default, Eq, PartialEq, Debug)]
+pub struct SolveResult {
+    pub score: i32,
+    pub mov: u64,
+}
+
+#[wasm_bindgen]
+impl SolveResult {
+    pub fn new(score: i32, mov: u64) -> SolveResult {
+        SolveResult {
+            score, mov
+        }
+    }
+
+}
+
+#[wasm_bindgen]
+pub fn solve(start: &BitBoard, depth: u8) -> SolveResult {
+    let start = start.clone();
+    let (score, mov) = solve_weak(start, depth, i32::MIN+2, i32::MAX-2);
+    SolveResult {
+        score,
+        mov
+    }
+    // return SolveResult::new(0,0)
+}
 
 /// Solves the board using a weak solver BitBoard::is_winning_board()
 /// return score, best_move
-pub fn solve_weak(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, player: bool) -> (i32, u64) {
+pub fn solve_weak(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32) -> (i32, u64) {
     if start.has_lost() {
         return (-1 - depth as i32, 0);
     }
@@ -30,7 +59,7 @@ pub fn solve_weak(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, pla
         }
 
         let new_board = start.play_field(to_play);
-        let (score, _) =  solve_weak(new_board, depth-1, -beta, -alpha, !player);
+        let (score, _) =  solve_weak(new_board, depth-1, -beta, -alpha);
         let score = -score;
 
         if score > max_score {
@@ -51,7 +80,7 @@ pub fn solve_weak(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, pla
 #[cfg(test)]
 mod tests {
     use crate::BitBoard::BitBoard;
-    use crate::Engine::solve_weak;
+    use crate::Engine::{solve_weak, solve};
 
     #[test]
     fn test_solve_easy() {
@@ -59,24 +88,24 @@ mod tests {
             "nnnnnnn
             nnnnnnn
             nnnnnnn
-            nnnnnpn
-            nnncnpn
-            nnnccpn";
+            nnnnnnn
+            nnnnnnn
+            nnncnnn";
         let bits = BitBoard::from_string(board_easy).unwrap();
 
-        let (score, best_move) = solve_weak(bits, 3, i32::MIN+2, i32::MAX-2, true);
+        let result = solve(bits, 3);
 
         let best_move_easy =
             "nnnnnnn
             nnnnnnn
-            nnnnnpn
             nnnnnnn
             nnnnnnn
+            nnnpnnn
             nnnnnnn";
         let best_move_easy = BitBoard::from_string(best_move_easy).unwrap().player;
 
-        println!("{}", score);
-        assert_eq!(best_move_easy, best_move)
+        println!("{}", result.score);
+        assert_eq!(best_move_easy, result.mov)
     }
 
     #[test]
@@ -85,12 +114,12 @@ mod tests {
             "nnnnnnn
             nnnnnnn
             nnnnnnn
-            nnnpnnn
-            nnncnpn
-            nnnccpn";
+            nnppcnn
+            npcccpn
+            npcccpn";
         let bits = BitBoard::from_string(board_easy).unwrap();
 
-        let (score, best_move) = solve_weak(bits, 15, i32::MIN+2, i32::MAX-2, true);
+        let result = solve(bits, 27);
 
         let best_move_easy =
             "nnnnnnn
@@ -101,8 +130,8 @@ mod tests {
             nnnnnnn";
         let best_move_easy = BitBoard::from_string(best_move_easy).unwrap().player;
 
-        println!("Score: {}", score);
-        println!("Move: {}", best_move);
+        println!("Score: {}", result.score);
+        println!("Move: {}", result.mov);
     }
 
 }

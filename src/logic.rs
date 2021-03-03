@@ -54,7 +54,7 @@ impl GameBoard {
             None => {0}
             Some(s) => {
                 match s {
-                    FieldType::Computer => 1,
+                    FieldType::Opponent => 1,
                     FieldType::Player => 2,
                 }
             }
@@ -73,7 +73,7 @@ impl fmt::Display for GameBoard {
             for y in 0..BOARD_HEIGHT {
                 match &self.fields[x][y] {
                     None => {write!(f, "N");}
-                    Some(FieldType::Computer) => {write!(f, "C");}
+                    Some(FieldType::Opponent) => {write!(f, "C");}
                     Some(FieldType::Player) => {write!(f, "P");}
                 }
             }
@@ -236,7 +236,7 @@ impl GameBoard {
                     }
                     match last_color {
                         None => {}
-                        Some(FieldType::Computer) => {result.computer[streak] += 1},
+                        Some(FieldType::Opponent) => {result.computer[streak] += 1},
                         Some(FieldType::Player) => {result.player[streak] += 1}
                     }
 
@@ -266,15 +266,15 @@ impl GameBoard {
 #[wasm_bindgen]
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum FieldType {
-    Computer,
+    Opponent,
     Player
 }
 
 impl FieldType {
     pub fn opposite(&self) -> FieldType {
         match self {
-            FieldType::Computer => {FieldType::Player }
-            FieldType::Player => {FieldType::Computer }
+            FieldType::Opponent => {FieldType::Player }
+            FieldType::Player => {FieldType::Opponent }
         }
     }
 }
@@ -502,7 +502,7 @@ pub struct Evaluation {
 impl Evaluation {
     pub fn player_win(&self) -> Option<FieldType> {
         if self.computer[3] > 0 {
-            return Some(FieldType::Computer);
+            return Some(FieldType::Opponent);
         } else if self.player[3] > 0 {
             return Some(FieldType::Player);
         } else {
@@ -532,7 +532,7 @@ impl Evaluation {
             FieldType::Player => {
                 player_score = -player_score
             }
-            FieldType::Computer => {
+            FieldType::Opponent => {
             }
             _ => {panic!("Score called for FieldType::None!")}
         };
@@ -557,7 +557,7 @@ mod test{
     #[test]
     fn correct_eval() {
         let p = Some(FieldType::Player);
-        let c = Some(FieldType::Computer);
+        let c = Some(FieldType::Opponent);
         let n = None::<FieldType>;
         let fields: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH]
             = [
@@ -577,7 +577,7 @@ mod test{
     #[test]
     fn correct_solve() {
         let p = Some(FieldType::Player);
-        let c = Some(FieldType::Computer);
+        let c = Some(FieldType::Opponent);
         let n = None::<FieldType>;
         let fields: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH]
             = [
@@ -590,14 +590,14 @@ mod test{
             [n,n,n,n,n,n,],
         ];
         let board = GameBoard::new(fields);
-        let best_move = ABSolver::solve(&board, 7, FieldType::Computer);
+        let best_move = ABSolver::solve(&board, 7, FieldType::Opponent);
         println!("Score: {}, Move: {}", best_move.score, best_move.move_row);
     }
 
     #[test]
     fn correct_solve_mtdf() {
         let p = Some(FieldType::Player);
-        let c = Some(FieldType::Computer);
+        let c = Some(FieldType::Opponent);
         let n = None::<FieldType>;
         let fields: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH]
             = [
@@ -616,12 +616,12 @@ mod test{
         // As the Score always is evaluated for a specific player, both players are maximising
         // --> Both alpha and beta are at -infinity.
         // let (score, best_move) =  ABSolver::solve_ab(&board, 9, FieldType::Computer, 0, 1, &mut trans_table);
-        let best_move= ABSolver::solve_mtdf_guessed(&board, 11, FieldType::Computer, 1);
+        let best_move= ABSolver::solve_mtdf_guessed(&board, 11, FieldType::Opponent, 1);
         // let best_move = BestMove::new(score.unwrap(), best_move.unwrap());
 
         // let best_move = ABSolver::solve_mtdf(&board, 11, FieldType::Computer);
         println!("Score: {}, Move: {}", best_move.score, best_move.move_row);
-        let best_move_traditional = ABSolver::solve(&board, 11, FieldType::Computer);
+        let best_move_traditional = ABSolver::solve(&board, 11, FieldType::Opponent);
         println!("Score: {}, RealMove: {}", best_move_traditional.score, best_move_traditional.move_row);
         assert_eq!(best_move, best_move_traditional)
     }
