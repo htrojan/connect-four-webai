@@ -1,5 +1,8 @@
+#![feature(test)]
+
 use criterion::*;
 use connect_four::BitBoard::BitBoard;
+use std::hint::black_box;
 
 pub fn bench_winning_move(crit: &mut Criterion) {
     let board_1 =
@@ -36,8 +39,24 @@ pub fn bench_winning_board(crit: &mut Criterion) {
     let bits_1 = BitBoard::from_string(board_1).unwrap();
     let bits_1 = black_box(bits_1);
 
-    crit.bench_function("winning_board_01", |b| b.iter( || bits_1.is_winning_board()));
+    crit.bench_function("winning_board_01", |b| b.iter( || bits_1.has_won()));
 
 }
 
-criterion_group!(bench_bitboard, bench_winning_move, bench_winning_board);
+pub fn bench_evaluation(crit: &mut Criterion) {
+    let board_1 =
+        "nnnpnnn
+        nnnnpnn
+        nnnnpnn
+        npnppnn
+        npnnpnn
+        nncccpn";
+
+    let bits_1 = BitBoard::from_string(board_1).unwrap();
+    let bits_1 = black_box(bits_1);
+
+    crit.bench_function("evaluation_01", |b| b.iter(|| bits_1.heuristic()));
+
+}
+
+criterion_group!(bench_bitboard, bench_evaluation, bench_winning_move, bench_winning_board);

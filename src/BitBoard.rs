@@ -274,12 +274,162 @@ impl BitBoard {
         column_mask & possible_moves
     }
 
+    /// Calculates the heuristic score of the board
+    pub fn heuristic(&self) -> i32 {
+        let player = self.player;
+        let occupied = self.occupied;
+        let opponent = occupied - player;
+
+        BitBoard::score_new(player, occupied) - BitBoard::score_new(opponent, occupied)
+    }
+
+    /// Returns the chains of three and the
+    #[inline]
+    fn chain_helper(player: u64, occupied_closed: u64, closed_mask: u64, offset: u64) -> (u64, u64, u64) {
+        let chains_three = (player << offset) & (player >> offset) & player;
+        let closed_r = (chains_three << 2*offset) & occupied_closed;
+        let closed_l = (chains_three >> 2*offset) & occupied_closed;
+        let closed = (closed_l << 4*offset) & closed_r;
+        let closed_border = (closed_mask & chains_three) & (closed_r >> 2*offset);
+        (chains_three, closed, closed_border)
+    }
+
+    pub fn score_new(player: u64, occupied: u64) -> i32{
+        let occupied_closed = occupied | !BitBoard::PLAYABLE_FIELDS;
+
+        // Vertical
+        let closed_mask: u64 = 0x2;
+        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 1);
+        let mut chains = chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+
+        // Horizontal
+        let closed_mask: u64 = 0x3F00;
+        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 8);
+        chains += chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+
+        // Diagonal up-right
+        let closed_mask: u64 = 0x21E00;
+        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 9);
+        chains += chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+
+        // Diagonal down-right
+        let closed_mask: u64 = 0x1E00;
+        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 7);
+        chains += chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+
+        chains
+
+    }
+
 }
 
 #[cfg(test)]
 mod tests {
     use crate::BitBoard::BitBoard;
     use crate::logic::GameBoard;
+
+    #[test]
+    fn test_new_score_down_right() {
+        let board_1 =
+            "pnnpnnn
+             npnnpnn
+             nnpnnpn
+             npnnpnn
+             nnpnnpn
+             nnnpnnp";
+        let board_2 =
+            "pnnnpnn
+             npnnnpn
+             nnpcnnp
+             pnncpnn
+             npnnnpn
+             nnpnnnp";
+        let board_1 = BitBoard::from_string(board_1).unwrap();
+        let player = board_1.player;
+        let occupied = board_1.occupied;
+        assert_eq!(4, BitBoard::score_new(player, occupied));
+        let board_2 = BitBoard::from_string(board_2).unwrap();
+        let player = board_2.player;
+        let occupied = board_2.occupied;
+        assert_eq!(0, BitBoard::score_new(player, occupied));
+    }
+    #[test]
+    fn test_new_score_vertical() {
+        let board_1 =
+            "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            pnnpnnn
+            pnnpnnn
+            pnnpnnn";
+        let board_2 =
+            "nnnnnnn
+            nnnnnnn
+            cnncnnn
+            pnnpnnn
+            pnnpnnn
+            pnnpnnn";
+        let board_1 = BitBoard::from_string(board_1).unwrap();
+        let player = board_1.player;
+        let occupied = board_1.occupied;
+        assert_eq!(2, BitBoard::score_new(player, occupied));
+        let board_2 = BitBoard::from_string(board_2).unwrap();
+        let player = board_2.player;
+        let occupied = board_2.occupied;
+        assert_eq!(0, BitBoard::score_new(player, occupied));
+
+    }
+    #[test]
+    fn test_new_score_horizontal() {
+        let board_1 =
+            "pppnppp
+            nnnnnnn
+            nnnnnnn
+            pppnppp
+            nnnnnnn
+            pppnppp";
+        let board_2 =
+            "pppcppp
+            nnnnnnn
+            nnnnnnn
+            pppcppp
+            nnnnnnn
+            pppcppp";
+        let board_1 = BitBoard::from_string(board_1).unwrap();
+        let player = board_1.player;
+        let occupied = board_1.occupied;
+        assert_eq!(6, BitBoard::score_new(player, occupied));
+        let board_2 = BitBoard::from_string(board_2).unwrap();
+        let player = board_2.player;
+        let occupied = board_2.occupied;
+        assert_eq!(0, BitBoard::score_new(player, occupied));
+    }
+
+    #[test]
+    fn test_new_score_up_right() {
+        let board_1 =
+            "nnnnnnp
+             nnnnnpn
+             nnnnpnn
+             nnpnnnn
+             npnnnnn
+             pnnnnnn";
+        let board_2 =
+            "nnpnnnp
+             npnnnpn
+             pnncpnn
+             nnpcnnp
+             npnnnpn
+             pnnnpnn";
+        let board_1 = BitBoard::from_string(board_1).unwrap();
+        let player = board_1.player;
+        let occupied = board_1.occupied;
+        assert_eq!(2, BitBoard::score_new(player, occupied));
+        let board_2 = BitBoard::from_string(board_2).unwrap();
+        let player = board_2.player;
+        let occupied = board_2.occupied;
+        assert_eq!(0, BitBoard::score_new(player, occupied));
+    }
 
     #[test]
     fn test_play_move() {

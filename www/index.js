@@ -89,16 +89,13 @@ const makeMove = function(row) {
     // let move = wasm.ABSolver.solve_mtdf_guessed(board, 13, FieldType.Opponent, last_guess);
     let move = 0;
     console.log("Number of stones: ", board.number_of_stones())
-    if (board.number_of_stones() > 16) {
+    if (board.number_of_stones() > 19) {
         console.log("Solving with higher depth(25) in endgame")
-        move = wasm.solve(board, 25);
+        move = wasm.solve(board, 42, wasm.SolverType.Weak);
     }
-    else if (board.number_of_stones() > 6) {
-        console.log("Solving with default depth(19)")
-        move = wasm.solve(board, 19);
-    } else {
+    else {
         console.log("Solving with reduced depth(13) in earlygame...")
-        move = wasm.solve(board, 13);
+        move = wasm.solve(board, 15, wasm.SolverType.Strong);
     }
 
     let t2 = new Date().getTime();
