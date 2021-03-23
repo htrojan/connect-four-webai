@@ -85,22 +85,27 @@ const makeMove = function(row) {
     let date = new Date()
     GAME_STATE = FieldType.Player;
     console.log("Solving...")
-    let t1 = new Date().getTime();
     // let move = wasm.ABSolver.solve_mtdf_guessed(board, 13, FieldType.Opponent, last_guess);
     let move = 0;
     console.log("Number of stones: ", board.number_of_stones())
+    let t1 = new Date().getTime();
     if (board.number_of_stones() >= 19) {
         console.log("Solving with higher depth(25) in endgame")
         move = wasm.solve(board, 42, wasm.SolverType.Weak);
     }
     else {
-        console.log("Solving with reduced depth(13) in earlygame...")
-        move = wasm.solve(board, 13, wasm.SolverType.Strong);
+        console.log("Solving with reduced depth(15) in earlygame...")
+        move = wasm.solve(board, 15, wasm.SolverType.Strong);
     }
-
     let t2 = new Date().getTime();
+    console.log("Time: ", (t2-t1),"ms, Searched ", move.nodes_searched, " nodes")
+    let perf = "Too fast"
+    if ((t2-t1) > 0) {
+        perf = (move.nodes_searched/BigInt(t2-t1)).toLocaleString()
+    }
+    console.log("Performance: ", perf, "kN/s")
 
-    console.log("Move evaluation took ", (t2-t1), "ms");
+
     console.log("Score = ", move.score)
     // let b_new = board.new_with_move(move.move_row, FieldType.Opponent);
     board.set_at(move.mov, FieldType.Player)

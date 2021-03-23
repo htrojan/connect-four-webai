@@ -283,7 +283,7 @@ impl BitBoard {
         let score_p = BitBoard::num_chains(player, occupied);
         let score_o = BitBoard::num_chains(opponent, occupied);
 
-        (score_p.three - score_o.three) * 5 + (score_p.two - score_o.two)
+        (score_p.three - score_o.three) * 2 + (score_p.two - score_o.two)
     }
 
     /// Returns the number of three-chains and the board without them
