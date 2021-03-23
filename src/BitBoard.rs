@@ -280,48 +280,76 @@ impl BitBoard {
         let occupied = self.occupied;
         let opponent = occupied - player;
 
-        BitBoard::score_new(player, occupied) - BitBoard::score_new(opponent, occupied)
+        let score_p = BitBoard::num_chains(player, occupied);
+        let score_o = BitBoard::num_chains(opponent, occupied);
+
+        (score_p.three - score_o.three) * 5 + (score_p.two - score_o.two)
     }
 
-    /// Returns the chains of three and the
+    /// Returns the number of three-chains and the board without them
     #[inline]
-    fn chain_helper(player: u64, occupied_closed: u64, closed_mask: u64, offset: u64) -> (u64, u64, u64) {
+    fn chain_helper(player: u64, occupied_closed: u64, closed_mask: u64, offset: u64) -> (i32, u64) {
         let chains_three = (player << offset) & (player >> offset) & player;
         let closed_r = (chains_three << 2*offset) & occupied_closed;
         let closed_l = (chains_three >> 2*offset) & occupied_closed;
         let closed = (closed_l << 4*offset) & closed_r;
         let closed_border = (closed_mask & chains_three) & (closed_r >> 2*offset);
-        (chains_three, closed, closed_border)
+        let chains = chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+
+        let without_three = player - (chains_three | chains_three<<offset | chains_three>>offset);
+        (chains, without_three)
+    }
+    /// Returns the chains of two
+    #[inline]
+    fn chain_helper_two(player: u64, occupied_closed: u64, closed_mask: u64, offset: u64) -> i32 {
+        let chains_two = (player << offset) & player;
+        let closed_r = (chains_two << offset) & occupied_closed;
+        let closed_l = (chains_two >> 2*offset) & occupied_closed;
+        let closed = (closed_l << 3*offset) & closed_r;
+        let closed_border = (closed_mask & chains_two) & (closed_r >> 2*offset);
+
+        let chains = chains_two.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+        chains
     }
 
-    pub fn score_new(player: u64, occupied: u64) -> i32{
+    /// Counts the number of (open) three-chains and two-chains in the board
+    /// Returns: (chains_three, chains_two)
+    fn num_chains(player: u64, occupied: u64) -> OpenChains {
         let occupied_closed = occupied | !BitBoard::PLAYABLE_FIELDS;
 
         // Vertical
         let closed_mask: u64 = 0x2;
-        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 1);
-        let mut chains = chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+        let (number, without) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 1);
+        let mut chains_two = BitBoard::chain_helper_two(without, occupied_closed, closed_mask, 1);
+        let mut chains_three = number;
 
         // Horizontal
         let closed_mask: u64 = 0x3F00;
-        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 8);
-        chains += chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+        let (number, without) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 8);
+        chains_two += BitBoard::chain_helper_two(without, occupied_closed, closed_mask, 8);
+        chains_three += number;
 
         // Diagonal up-right
         let closed_mask: u64 = 0x21E00;
-        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 9);
-        chains += chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+        let (number, without) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 9);
+        chains_two += BitBoard::chain_helper_two(without, occupied_closed, closed_mask, 9);
+        chains_three += number;
 
         // Diagonal down-right
         let closed_mask: u64 = 0x1E00;
-        let (chains_three, closed, closed_border) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 7);
-        chains += chains_three.count_ones() as i32 - closed.count_ones() as i32 - closed_border.count_ones() as i32;
+        let (number, without) = BitBoard::chain_helper(player, occupied_closed, closed_mask, 7);
+        chains_two += BitBoard::chain_helper_two(without, occupied_closed, closed_mask, 7);
+        chains_three += number;
 
-        chains
-
+        OpenChains { three: chains_three, two: chains_two }
     }
-
 }
+
+struct OpenChains{
+    three: i32,
+    two: i32
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -347,11 +375,12 @@ mod tests {
         let board_1 = BitBoard::from_string(board_1).unwrap();
         let player = board_1.player;
         let occupied = board_1.occupied;
-        assert_eq!(4, BitBoard::score_new(player, occupied));
+        assert_eq!(4, BitBoard::num_chains(player, occupied).three);
         let board_2 = BitBoard::from_string(board_2).unwrap();
         let player = board_2.player;
         let occupied = board_2.occupied;
-        assert_eq!(0, BitBoard::score_new(player, occupied));
+        assert_eq!(0, BitBoard::num_chains(player, occupied).three);
+        assert_eq!(0, BitBoard::num_chains(player, occupied).two);
     }
     #[test]
     fn test_new_score_vertical() {
@@ -372,11 +401,11 @@ mod tests {
         let board_1 = BitBoard::from_string(board_1).unwrap();
         let player = board_1.player;
         let occupied = board_1.occupied;
-        assert_eq!(2, BitBoard::score_new(player, occupied));
+        assert_eq!(2, BitBoard::num_chains(player, occupied).three);
         let board_2 = BitBoard::from_string(board_2).unwrap();
         let player = board_2.player;
         let occupied = board_2.occupied;
-        assert_eq!(0, BitBoard::score_new(player, occupied));
+        assert_eq!(0, BitBoard::num_chains(player, occupied).three);
 
     }
     #[test]
@@ -398,11 +427,11 @@ mod tests {
         let board_1 = BitBoard::from_string(board_1).unwrap();
         let player = board_1.player;
         let occupied = board_1.occupied;
-        assert_eq!(6, BitBoard::score_new(player, occupied));
+        assert_eq!(6, BitBoard::num_chains(player, occupied).three);
         let board_2 = BitBoard::from_string(board_2).unwrap();
         let player = board_2.player;
         let occupied = board_2.occupied;
-        assert_eq!(0, BitBoard::score_new(player, occupied));
+        assert_eq!(0, BitBoard::num_chains(player, occupied).three);
     }
 
     #[test]
@@ -424,11 +453,11 @@ mod tests {
         let board_1 = BitBoard::from_string(board_1).unwrap();
         let player = board_1.player;
         let occupied = board_1.occupied;
-        assert_eq!(2, BitBoard::score_new(player, occupied));
+        assert_eq!(2, BitBoard::num_chains(player, occupied).three);
         let board_2 = BitBoard::from_string(board_2).unwrap();
         let player = board_2.player;
         let occupied = board_2.occupied;
-        assert_eq!(0, BitBoard::score_new(player, occupied));
+        assert_eq!(0, BitBoard::num_chains(player, occupied).three);
     }
 
     #[test]
