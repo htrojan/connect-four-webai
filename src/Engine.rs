@@ -187,33 +187,7 @@ mod tests {
         assert_eq!(best_move_easy, result.mov)
     }
 
-    #[test]
-    fn test_solve_advanced() {
-        let board_easy =
-            "nnnnnnn
-            nnnnnnn
-            nnnnnnn
-            nnppcnn
-            npcccpn
-            npcccpn";
-        let bits = BitBoard::from_string(board_easy).unwrap();
-
-        let result = solve(&bits, 27, Weak);
-
-        let best_move_easy =
-            "nnnnnnn
-            nnnnnnn
-            nnnnnpn
-            nnnnnnn
-            nnnnnnn
-            nnnnnnn";
-        let best_move_easy = BitBoard::from_string(best_move_easy).unwrap().player;
-
-        println!("Score: {}", result.score);
-        println!("Move: {}", result.mov);
-    }
-
-    #[test]
+    // #[test]
     fn test_solve_strong() {
         let board_easy =
             "nnnnnnn
