@@ -275,6 +275,39 @@ impl BitBoard {
         column_mask & possible_moves
     }
 
+    #[inline]
+    fn heuristic_helper_2(player_space: u64, player: u64, offset: u32) -> u32 {
+        let tmp = (player_space << 2*offset) & player_space;
+        let possible_wins = (tmp << offset ) & tmp;
+        let win_mask = possible_wins | (possible_wins<<offset)| (possible_wins<<2*offset) | (possible_wins<<3*offset);
+        let score = (player & win_mask).count_ones();
+        score
+    }
+
+    pub fn heuristic_2(&self) -> i32 {
+        let player = self.player;
+        let occupied = self.occupied;
+        let opponent = occupied - player;
+
+        BitBoard::material_score(player, opponent) - BitBoard::material_score(opponent, player)
+    }
+
+    #[inline]
+    fn material_score(player: u64, opponent: u64) -> i32 {
+        // All fields played or still playable by player
+        let player_space = (BitBoard::PLAYABLE_FIELDS & !opponent);
+
+        // Vertical
+        let mut score = BitBoard::heuristic_helper_2(player_space, player, 1);
+        // Horizontal
+        score += BitBoard::heuristic_helper_2(player_space, player, 8);
+        // Diagonal 1
+        score += BitBoard::heuristic_helper_2(player_space, player, 9);
+        // Diagonal 2
+        score += BitBoard::heuristic_helper_2(player_space, player, 7);
+        score as i32
+    }
+
     /// Calculates the heuristic score of the board
     pub fn heuristic(&self) -> i32 {
         let player = self.player;

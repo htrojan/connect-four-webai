@@ -14,8 +14,8 @@ pub struct ZobristHasher {
 
 impl ZobristHasher {
     pub fn new() -> ZobristHasher {
-        let table_p1 = [0; 42];
-        let table_p2 = [0; 42];
+        let mut table_p1 = [0; 42];
+        let mut table_p2 = [0; 42];
 
         let mut rnd = rand::rngs::StdRng::seed_from_u64(42);
 
@@ -52,7 +52,7 @@ impl ZobristHasher {
     /// by xoring the hash with the corresponding random value corresponding
     /// to that position and player
     #[inline]
-    pub fn update_hash(&self, hash: u64, mov: u64, player: FieldType) {
+    pub fn update_hash(&self, hash: u64, mov: u64, player: FieldType) -> u64 {
         let leading_zeros = mov.leading_zeros() as usize;
         //Todo: Is it faster to use arrays of length 8*7=56 in the zobrist tables
         // to circumvent the padding correction in the update_hash() function?

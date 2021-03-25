@@ -16,6 +16,8 @@ pub struct SolveResult {
     pub score: i32,
     pub mov: u64,
     pub nodes_searched: u64,
+    // Win was found in x rounds
+    pub end_in: i32,
 }
 
 #[wasm_bindgen]
@@ -23,7 +25,8 @@ impl SolveResult {
     pub fn new(score: i32, mov: u64) -> SolveResult {
         SolveResult {
             score, mov,
-            nodes_searched: 0
+            nodes_searched: 0,
+            end_in: 0
         }
     }
 
@@ -39,10 +42,22 @@ pub fn solve(start: &BitBoard, depth: u8, solver: SolverType) -> SolveResult {
         SolverType::Strong => { solve_strong(start, depth, i32::MIN+2, i32::MAX-2, &mut nodes_searched)}
         SolverType::Weak => { solve_weak(start, depth, i32::MIN+2, i32::MAX-2, &mut nodes_searched)}
     };
+
+    let end_in = match solver {
+        SolverType::Strong => {0}
+        SolverType::Weak => {
+            if score == 0 {
+                0
+            } else {
+                depth as i32 - score.abs() + 1
+            }
+        }
+    };
     SolveResult {
         score,
         mov,
-        nodes_searched
+        nodes_searched,
+        end_in
     }
     // return SolveResult::new(0,0)
 }
@@ -58,7 +73,7 @@ pub fn solve_strong(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, n
 
     // No conclusion found --> draw
     if depth == 0 {
-        let score = start.heuristic();
+        let score = start.heuristic_2();
         return (score, 0);
     }
 

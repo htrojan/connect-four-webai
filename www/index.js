@@ -74,39 +74,41 @@ const makeMove = function(row) {
     board.free()
     board = b
 
-    console.log("Registering opponent move")
-
-    // drawBoard();
     console.log("Player made move")
     if (checkWin()) {
         return;
     }
 
-    let date = new Date()
     GAME_STATE = FieldType.Player;
-    console.log("Solving...")
-    // let move = wasm.ABSolver.solve_mtdf_guessed(board, 13, FieldType.Opponent, last_guess);
+
     let move = 0;
+
     console.log("Number of stones: ", board.number_of_stones())
     let t1 = new Date().getTime();
-    if (board.number_of_stones() >= 19) {
-        console.log("Solving with higher depth(25) in endgame")
+    if (board.number_of_stones() >= 15) {
+        console.log("[Endgame] Solving Complete board")
         move = wasm.solve(board, 42, wasm.SolverType.Weak);
     }
     else {
-        console.log("Solving with reduced depth(15) in earlygame...")
+        console.log("[Earlygame] Solving with heuristic score and depth: 15")
         move = wasm.solve(board, 15, wasm.SolverType.Strong);
     }
     let t2 = new Date().getTime();
-    console.log("Time: ", (t2-t1),"ms, Searched ", move.nodes_searched, " nodes")
-    let perf = "Too fast"
+    console.log("Time: ", (t2-t1),"ms, Searched ", move.nodes_searched.toLocaleString(), " Nodes")
+    let perf = "Nan"
     if ((t2-t1) > 0) {
         perf = (move.nodes_searched/BigInt(t2-t1)).toLocaleString()
     }
     console.log("Performance: ", perf, "kN/s")
 
 
-    console.log("Score = ", move.score)
+    if (move.end_in === 0) {
+        console.log("Score = ", move.score)
+    } else if (move.score > 0){
+        console.log("Computer wins in ", move.end_in)
+    } else {
+        console.log("Player wins in ", move.end_in)
+    }
     // let b_new = board.new_with_move(move.move_row, FieldType.Opponent);
     board.set_at(move.mov, FieldType.Player)
 
