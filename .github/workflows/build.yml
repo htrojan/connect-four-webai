@@ -16,6 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Install rust nightly
+      run: |
+        rustup install nightly
+        rustup default nightly
     - name: Run tests
       run: cargo test --verbose
     - name: setup wasm-pack
