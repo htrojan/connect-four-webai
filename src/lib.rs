@@ -4,6 +4,7 @@ mod utils;
 pub mod logic;
 pub mod BitBoard;
 mod Engine;
+mod transposition;
 
 use wasm_bindgen::prelude::*;
 

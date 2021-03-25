@@ -1,5 +1,7 @@
 use criterion::*;
-use connect_four::logic::{ABSolver, GameBoard, FieldType, BOARD_HEIGHT, BOARD_WIDTH};
+
+use connect_four::BitBoard::FieldType;
+use connect_four::logic::{ABSolver, BOARD_HEIGHT, BOARD_WIDTH, GameBoard};
 
 const p: Option<FieldType> = Some(FieldType::Player);
 const c: Option<FieldType> = Some(FieldType::Opponent);

@@ -1,6 +1,7 @@
-use crate::logic;
-use crate::logic::{BOARD_WIDTH, BOARD_HEIGHT, FieldType};
 use wasm_bindgen::prelude::*;
+
+use crate::logic;
+use crate::logic::{BOARD_HEIGHT, BOARD_WIDTH};
 
 /// Encoding: Column-first-order, 8-bit per column.
 /// That way 2 bits per column (they are 6 fields high) are left unused.
@@ -786,5 +787,21 @@ mod tests {
         let possible = board_2.all_possible_moves();
         let expected = BitBoard::from_string(expected_2).unwrap().player;
         assert_eq!(possible, expected);
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum FieldType {
+    Opponent,
+    Player
+}
+
+impl FieldType {
+    pub fn opposite(&self) -> FieldType {
+        match self {
+            FieldType::Opponent => {FieldType::Player }
+            FieldType::Player => {FieldType::Opponent }
+        }
     }
 }

@@ -1,8 +1,11 @@
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::__rt::std::fmt;
 use std::fmt::Formatter;
-use hashbrown::HashMap;
 use std::hash::{Hash, Hasher};
+
+use hashbrown::HashMap;
+use wasm_bindgen::__rt::std::fmt;
+use wasm_bindgen::prelude::*;
+
+use crate::BitBoard::FieldType;
 
 // Connect four dimensions
 pub const BOARD_WIDTH: usize = 7;
@@ -261,22 +264,6 @@ impl GameBoard {
         return x >= 0 && y >= 0 && x < BOARD_WIDTH as i32 && y < BOARD_HEIGHT as i32
     }
 
-}
-
-#[wasm_bindgen]
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum FieldType {
-    Opponent,
-    Player
-}
-
-impl FieldType {
-    pub fn opposite(&self) -> FieldType {
-        match self {
-            FieldType::Opponent => {FieldType::Player }
-            FieldType::Player => {FieldType::Opponent }
-        }
-    }
 }
 
 #[wasm_bindgen]
@@ -551,8 +538,10 @@ impl Evaluation {
 
 #[cfg(test)]
 mod test{
-    use crate::logic::{FieldType, BOARD_HEIGHT, BOARD_WIDTH, GameBoard, ABSolver, BestMove};
     use hashbrown::HashMap;
+
+    use crate::BitBoard::FieldType;
+    use crate::logic::{ABSolver, BestMove, BOARD_HEIGHT, BOARD_WIDTH, GameBoard};
 
     #[test]
     fn correct_eval() {
