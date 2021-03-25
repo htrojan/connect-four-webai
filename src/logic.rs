@@ -1,8 +1,11 @@
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::__rt::std::fmt;
 use std::fmt::Formatter;
-use hashbrown::HashMap;
 use std::hash::{Hash, Hasher};
+
+use hashbrown::HashMap;
+use wasm_bindgen::__rt::std::fmt;
+use wasm_bindgen::prelude::*;
+
+use crate::BitBoard::FieldType;
 
 // Connect four dimensions
 pub const BOARD_WIDTH: usize = 7;
@@ -54,7 +57,7 @@ impl GameBoard {
             None => {0}
             Some(s) => {
                 match s {
-                    FieldType::Computer => 1,
+                    FieldType::Opponent => 1,
                     FieldType::Player => 2,
                 }
             }
@@ -73,7 +76,7 @@ impl fmt::Display for GameBoard {
             for y in 0..BOARD_HEIGHT {
                 match &self.fields[x][y] {
                     None => {write!(f, "N");}
-                    Some(FieldType::Computer) => {write!(f, "C");}
+                    Some(FieldType::Opponent) => {write!(f, "C");}
                     Some(FieldType::Player) => {write!(f, "P");}
                 }
             }
@@ -236,7 +239,7 @@ impl GameBoard {
                     }
                     match last_color {
                         None => {}
-                        Some(FieldType::Computer) => {result.computer[streak] += 1},
+                        Some(FieldType::Opponent) => {result.computer[streak] += 1},
                         Some(FieldType::Player) => {result.player[streak] += 1}
                     }
 
@@ -264,34 +267,25 @@ impl GameBoard {
 }
 
 #[wasm_bindgen]
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum FieldType {
-    Computer,
-    Player
-}
-
-impl FieldType {
-    pub fn opposite(&self) -> FieldType {
-        match self {
-            FieldType::Computer => {FieldType::Player }
-            FieldType::Player => {FieldType::Computer }
-        }
-    }
-}
-
-#[wasm_bindgen]
 pub struct ABSolver {
 
 }
 
+enum NodeType {
+    // Represents an invalid move. Does not have to be evaluated further
+    Invalid,
+    Upperbound,
+    Lowerbound,
+    Exact
+}
 struct TableEntry {
-    score: Option<i32>,
-    // alpha: i32,
-    // beta: i32,
+    flag: NodeType,
+    value: i32,
+    best_move: usize
 }
 
 #[wasm_bindgen]
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct BestMove {
     pub score: i32,
     pub move_row: usize
@@ -311,33 +305,43 @@ impl ABSolver {
         let depth = u8::min(free_fields, depth);
         let mut trans_table = HashMap::new();
 
-        // As the score always is evaluated for a specific player, both players are maximising
+        // As the Score always is evaluated for a specific player, both players are maximising
         // --> Both alpha and beta are at -infinity.
         let (score, best_move) =  ABSolver::solve_ab(board, depth, player, i32::MIN+2, i32::MAX-2, &mut trans_table);
         return BestMove::new(score.unwrap(), best_move.unwrap());
     }
 
     /***
-    Returns the score in an option and the row for the move
+    Returns the Score in an option and the row for the move
      */
     fn solve_ab(board: &GameBoard, depth: u8, player: FieldType, mut alpha: i32, mut beta: i32, table: &mut HashMap<GameBoard, TableEntry>) -> (Option<i32>, Option<usize>) {
+        let orig_alpha = alpha;
+        // Check transposition table for move
+        let cache = table.get(board);
+
+        // Check alpha and beta values stored in cache
+        match cache {
+            Some(entry) => {
+                match entry.flag {
+                    NodeType::Invalid => {return (None, None)}
+                    NodeType::Upperbound => {beta = i32::min(beta, entry.value)}
+                    NodeType::Lowerbound => {alpha = i32::max(alpha, entry.value)}
+                    NodeType::Exact => {return (Some(entry.value), Some(entry.best_move))}
+                }
+                if alpha >= beta {
+                    return (Some(entry.value), Some(entry.best_move))
+                }
+            }
+            None => {}
+        }
+
         // Evaluate board
         if depth == 0 {
-            let score = table.get(board);
-
-            let score = match score {
-                None => {
-                    let s = board.evaluate().score(&player);
-                    table.insert(*board, TableEntry{score:s});
-                    s
-                },
-                Some(entry) => entry.score
-            };
-
-            // let score = board.evaluate().score(&player);
+            let score = board.evaluate().score(&player);
             // There is no best move. This is the only board. Return none for the best move
             return (score, None);
         }
+
 
         let mut max_score = i32::MIN;
         let mut best_move: usize = 0;
@@ -349,53 +353,128 @@ impl ABSolver {
 
             // A return of None marks an invalid board
             let score = match new_board {
-                None => {
-                    // println!("Invalid Board!");
-                    continue;}
+                None => { continue;}
                 Some(ref board) => {
-                    // Check in transposition table
-                    let trans_move = table.get(board);
-                    match trans_move {
-                        None => {
-                           let (s, _ ) = ABSolver::solve_ab(board, depth-1, player.opposite(), -beta, -alpha, table);
-                           table.insert(*board, TableEntry{score: s});
-                            s
-                        }
-                        Some(entry) => {
-                            entry.score
-                        }
-                    }
+                    let (s, _ ) = ABSolver::solve_ab(board, depth-1, player.opposite(), -beta, -alpha, table);
+                    s
                 }
             };
 
-            // If score is None, this node is invalid as both players have won at this point.
+            // If Score is None, this node is invalid as both players have won at this point.
             // Reject all children and evaluate boards further up
             match score {
                 None => {
-                    // Evaluate this node
+                    // Evaluate this node. Insert the invalid as invalid into the transposition table.
+                    // Is this necessary? Maybe leave invalid nodes out of the table ...?
+                    // They could take away space that can be used in a better way
+                    table.insert(new_board.unwrap(), TableEntry {
+                        flag: NodeType::Invalid,
+                        value: 0,
+                        best_move
+                    });
                     // Unwrap is safe as continue is called before if board is None
                     return (new_board.unwrap().evaluate().score(&player), Some(i));
                 }
                 Some(score) => {
-                    // The score was done for the opposite player. Revert this
                     let score = -score;
-                    //Alpha beta cutoff
-                    if score >= beta {
-                        // println!("Cutoff!");
-                        return (Some(score), Some(i));
-                    }
+                    // Update max_score and best_move if this move is better
                     if score > max_score {
                         max_score = score;
                         best_move = i;
-                        if score > alpha{
-                            alpha = score;
-                        }
+                    }
+                    alpha = i32::max(alpha, score);
+
+                    if alpha >= beta {
+                        break
                     }
                 }
             }
         }
 
+        let mut node_type = NodeType::Invalid;
+        // Fill transposition table with values of this node
+        if max_score <= orig_alpha{
+            node_type = NodeType::Upperbound;
+        } else if max_score >= beta {
+            node_type = NodeType::Lowerbound;
+        } else {
+            node_type = NodeType::Exact;
+        }
+
+        // Store or update entry
+        let entry = TableEntry {
+            flag: node_type,
+            value: max_score,
+            best_move
+        };
+        table.insert(*board, entry);
+
+
         return (Some(max_score), Some(best_move));
+    }
+
+    fn store_lower(table: &mut HashMap<GameBoard, TableEntry>, board: &GameBoard, lower: i32) {
+
+    }
+    fn store_upper(table: &mut HashMap<GameBoard, TableEntry>, board: &GameBoard, upper: i32) {
+
+    }
+    fn store_exact(table: &mut HashMap<GameBoard, TableEntry>, board: &GameBoard, exact: i32) {
+
+    }
+
+    pub fn solve_mtdf(board: &GameBoard, depth: u8, player: FieldType) -> BestMove {
+        let mut optimal_move = Some(0);
+        let free_fields = board.empty_fields();
+        let depth = u8::min(free_fields, depth);
+
+        // Get initial guess by searching the tree with a wide window in a short depth
+        let mut guess = ABSolver::solve(board, u8::min(depth, 3), player);
+
+        // Only every second iteration will be searched.
+        let iterations: u8 = (depth - 3)/2;
+
+        for d in 0..iterations{
+            guess = ABSolver::solve_mtdf_guessed(board, depth, player, guess.score);
+        }
+        guess
+    }
+
+    pub fn solve_mtdf_guessed(board: &GameBoard, depth: u8, player: FieldType, initial_guess: i32) -> BestMove {
+        let mut guess = initial_guess;
+        let mut optimal_move = Some(0);
+        let free_fields = board.empty_fields();
+        let depth = u8::min(free_fields, depth);
+
+        let mut trans_table = HashMap::new();
+        let mut upperbound = i32::MAX - 2;
+        let mut lowerbound = i32::MIN + 2;
+
+        loop {
+            let beta = if guess == lowerbound {
+                guess + 1
+            } else {
+                guess
+            };
+            let (score, row) = ABSolver::solve_ab(board, depth, player, beta-1, beta, &mut trans_table);
+            // (guess, optimal_move) = ABSolver::solve_ab(board, depth, player, beta-1, beta, &mut trans_table);
+            optimal_move = row;
+            guess = score.unwrap();
+
+            if guess < beta {
+                upperbound = guess;
+            } else {
+                lowerbound = guess;
+            }
+
+            if lowerbound >= upperbound {
+                break;
+            }
+        }
+        BestMove {
+            score: guess,
+            move_row: optimal_move.unwrap()
+        }
     }
 }
 
@@ -410,7 +489,7 @@ pub struct Evaluation {
 impl Evaluation {
     pub fn player_win(&self) -> Option<FieldType> {
         if self.computer[3] > 0 {
-            return Some(FieldType::Computer);
+            return Some(FieldType::Opponent);
         } else if self.player[3] > 0 {
             return Some(FieldType::Player);
         } else {
@@ -422,8 +501,8 @@ impl Evaluation {
 
 impl Evaluation {
     /**
-     * Gets score for specified player.
-     * The return value is None if both players have a streak of 4, indicating this score
+     * Gets Score for specified player.
+     * The return value is None if both players have a streak of 4, indicating this Score
      * is invalid.
     **/
     pub fn score(&self, player: &FieldType) -> Option<i32> {
@@ -440,7 +519,7 @@ impl Evaluation {
             FieldType::Player => {
                 player_score = -player_score
             }
-            FieldType::Computer => {
+            FieldType::Opponent => {
             }
             _ => {panic!("Score called for FieldType::None!")}
         };
@@ -459,12 +538,15 @@ impl Evaluation {
 
 #[cfg(test)]
 mod test{
-    use crate::logic::{FieldType, BOARD_HEIGHT, BOARD_WIDTH, GameBoard, ABSolver};
+    use hashbrown::HashMap;
+
+    use crate::BitBoard::FieldType;
+    use crate::logic::{ABSolver, BestMove, BOARD_HEIGHT, BOARD_WIDTH, GameBoard};
 
     #[test]
     fn correct_eval() {
         let p = Some(FieldType::Player);
-        let c = Some(FieldType::Computer);
+        let c = Some(FieldType::Opponent);
         let n = None::<FieldType>;
         let fields: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH]
             = [
@@ -484,7 +566,7 @@ mod test{
     #[test]
     fn correct_solve() {
         let p = Some(FieldType::Player);
-        let c = Some(FieldType::Computer);
+        let c = Some(FieldType::Opponent);
         let n = None::<FieldType>;
         let fields: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH]
             = [
@@ -497,8 +579,40 @@ mod test{
             [n,n,n,n,n,n,],
         ];
         let board = GameBoard::new(fields);
-        let best_move = ABSolver::solve(&board, 7, FieldType::Computer);
+        let best_move = ABSolver::solve(&board, 7, FieldType::Opponent);
         println!("Score: {}, Move: {}", best_move.score, best_move.move_row);
+    }
+
+    #[test]
+    fn correct_solve_mtdf() {
+        let p = Some(FieldType::Player);
+        let c = Some(FieldType::Opponent);
+        let n = None::<FieldType>;
+        let fields: [[Option<FieldType>; BOARD_HEIGHT]; BOARD_WIDTH]
+            = [
+            [n,n,n,n,n,n,],
+            [n,n,n,n,n,n,],
+            [n,n,n,n,n,n,],
+            [p,n,n,n,n,n,],
+            [n,n,n,n,n,n,],
+            [n,n,n,n,n,n,],
+            [n,n,n,n,n,n,],
+        ];
+        let board = GameBoard::new(fields);
+
+        // let mut trans_table = HashMap::new();
+
+        // As the Score always is evaluated for a specific player, both players are maximising
+        // --> Both alpha and beta are at -infinity.
+        // let (score, best_move) =  ABSolver::solve_ab(&board, 9, FieldType::Computer, 0, 1, &mut trans_table);
+        let best_move= ABSolver::solve_mtdf_guessed(&board, 11, FieldType::Opponent, 1);
+        // let best_move = BestMove::new(score.unwrap(), best_move.unwrap());
+
+        // let best_move = ABSolver::solve_mtdf(&board, 11, FieldType::Computer);
+        println!("Score: {}, Move: {}", best_move.score, best_move.move_row);
+        let best_move_traditional = ABSolver::solve(&board, 11, FieldType::Opponent);
+        println!("Score: {}, RealMove: {}", best_move_traditional.score, best_move_traditional.move_row);
+        assert_eq!(best_move, best_move_traditional)
     }
 
 }

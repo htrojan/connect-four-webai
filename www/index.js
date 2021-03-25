@@ -1,5 +1,7 @@
 import * as wasm from "../pkg"
-import {FieldType, GameBoard} from "../pkg";
+import {BitBoard, FieldType, GameBoard} from "../pkg";
+
+
 
 const GRID_COLOR = "black";
 
@@ -7,8 +9,8 @@ const canvas = document.getElementById("connect-four-canvas");
 const ctx = canvas.getContext("2d");
 
 // Width and height of Board
-const width = wasm.GameBoard.get_x();
-const height = wasm.GameBoard.get_y();
+const width = GameBoard.get_x();
+const height = GameBoard.get_y();
 
 // Width and height of Cells
 const cellSize = 60;
@@ -16,13 +18,14 @@ const cellSize = 60;
 const borderWidth = 3;
 const offset = borderWidth/2;
 
-let GAME_STATE = FieldType.Player;
+let GAME_STATE = FieldType.Opponent;
 
 canvas.width = (cellSize + borderWidth) * width + borderWidth
 canvas.height = (cellSize + borderWidth) * height + borderWidth
 
-let board = wasm.GameBoard.empty();
+let board = BitBoard.empty();
 let winner = undefined;
+let last_guess = 3;
 // board = board.new_with_move(0, FieldType.Computer)
 // board = board.new_with_move(1, FieldType.Player)
 
@@ -33,52 +36,85 @@ const renderLoop = () => {
 }
 
 const checkWin = function() {
-    winner = board.evaluate().player_win();
-
-    if (winner === FieldType.Player) {
-        console.log("Player won!")
-
-    } else if (winner === FieldType.Computer) {
+    if (board.has_won()) {
         console.log("Computer won!")
+        winner = FieldType.Player;
+        return true;
+    } else if (board.has_lost()) {
+        console.log("Player won!")
+        winner = FieldType.Opponent;
+        return true;
     } else {
         return false;
     }
-    return true;
 }
 
 /**
+ * The player is the computer.
+ * The opponent is the physical player playing the website.
  * @param {number} row
  */
 const makeMove = function(row) {
+    // Game already over
     if (winner !== undefined) {
         return;
     }
+
     // New move is being calculated
-    if (GAME_STATE === FieldType.Computer) {
+    if (GAME_STATE === FieldType.Player) {
         // This shouldn't happen!
         return;
     }
-    let b = board.new_with_move(row, GAME_STATE);
+
+    let b = board.play_column(row, FieldType.Opponent);
     if (b === undefined) {
-        return;
-    }
-    board.free();
-    board = b;
-
-    if (checkWin()) {
-        return;
+        return
     }
 
-    GAME_STATE = FieldType.Computer;
-    let move = wasm.ABSolver.solve(board, 13, FieldType.Computer);
-    console.log("Score = ", move.score)
-    let b_new = board.new_with_move(move.move_row, FieldType.Computer);
     board.free()
-    board = b_new;
-    GAME_STATE = FieldType.Player;
+    board = b
+
+    console.log("Player made move")
     if (checkWin()) {
         return;
     }
+
+    GAME_STATE = FieldType.Player;
+
+    let move = 0;
+
+    console.log("Number of stones: ", board.number_of_stones())
+    let t1 = new Date().getTime();
+    if (board.number_of_stones() >= 15) {
+        console.log("[Endgame] Solving Complete board")
+        move = wasm.solve(board, 42, wasm.SolverType.Weak);
+    }
+    else {
+        console.log("[Earlygame] Solving with heuristic score and depth: 15")
+        move = wasm.solve(board, 15, wasm.SolverType.Strong);
+    }
+    let t2 = new Date().getTime();
+    console.log("Time: ", (t2-t1),"ms, Searched ", move.nodes_searched.toLocaleString(), " Nodes")
+    let perf = "Nan"
+    if ((t2-t1) > 0) {
+        perf = (move.nodes_searched/BigInt(t2-t1)).toLocaleString()
+    }
+    console.log("Performance: ", perf, "kN/s")
+
+
+    if (move.end_in === 0) {
+        console.log("Score = ", move.score)
+    } else if (move.score > 0){
+        console.log("Computer wins in ", move.end_in)
+    } else {
+        console.log("Player wins in ", move.end_in)
+    }
+    // let b_new = board.new_with_move(move.move_row, FieldType.Opponent);
+    board.set_at(move.mov, FieldType.Player)
+
+    GAME_STATE = FieldType.Opponent;
+
+    checkWin();
 }
 
 const drawGrid = () => {
@@ -99,14 +135,15 @@ const drawGrid = () => {
 }
 
 const drawBoard = () => {
+    console.log("Drawing board")
     ctx.strokeStyle = "red"
     for (let x = 0; x < width; x++) {
         for (let y = 0; y < height; y++) {
             // Rotate board
-            let field = board.at(x, height - y -1);
+            let field = board.get_at(x, height - y -1);
             if (field !== undefined) {
                 ctx.beginPath();
-                if (field === FieldType.Computer) {
+                if (field === FieldType.Opponent) {
                     ctx.fillStyle = "red";
                 }
                 if (field === FieldType.Player) {
