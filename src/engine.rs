@@ -1,6 +1,5 @@
-use crate::BitBoard::BitBoard;
+use crate::board::BitBoard;
 use wasm_bindgen::prelude::*;
-use crate::logic::BestMove;
 
 const SEARCH_ORDER: [u64; 7] = [3,2,4,1,5,0,6];
 
@@ -18,6 +17,22 @@ pub struct SolveResult {
     pub nodes_searched: u64,
     // Win was found in x rounds
     pub end_in: i32,
+}
+
+
+#[wasm_bindgen]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct BestMove {
+    pub score: i32,
+    pub move_row: usize
+}
+
+impl BestMove {
+    pub fn new(score: i32, move_row: usize) -> BestMove {
+        BestMove {
+            score, move_row
+        }
+    }
 }
 
 #[wasm_bindgen]
@@ -157,9 +172,9 @@ pub fn solve_weak(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, num
 
 #[cfg(test)]
 mod tests {
-    use crate::BitBoard::BitBoard;
-    use crate::Engine::{solve_weak, solve};
-    use crate::Engine::SolverType::{Weak, Strong};
+    use crate::board::BitBoard;
+    use crate::engine::{solve_weak, solve};
+    use crate::engine::SolverType::{Weak, Strong};
 
     #[test]
     fn test_solve_easy() {

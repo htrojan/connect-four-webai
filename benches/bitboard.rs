@@ -1,7 +1,7 @@
 #![feature(test)]
 
 use criterion::*;
-use connect_four::BitBoard::BitBoard;
+use connect_four::board::BitBoard;
 use std::hint::black_box;
 
 pub fn bench_winning_move(crit: &mut Criterion) {

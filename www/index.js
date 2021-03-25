@@ -1,5 +1,5 @@
 import * as wasm from "../pkg"
-import {BitBoard, FieldType, GameBoard} from "../pkg";
+import {BitBoard, FieldType} from "../pkg";
 
 
 
@@ -9,8 +9,8 @@ const canvas = document.getElementById("connect-four-canvas");
 const ctx = canvas.getContext("2d");
 
 // Width and height of Board
-const width = GameBoard.get_x();
-const height = GameBoard.get_y();
+const width = 7;
+const height = 6;
 
 // Width and height of Cells
 const cellSize = 60;

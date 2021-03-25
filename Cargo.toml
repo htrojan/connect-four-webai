@@ -37,10 +37,14 @@ criterion = "0.3.4"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
-opt-level = 3
+#opt-level = 3
 
 [profile.test]
 #opt-level = 3
+
+[package.metadata.wasm-pack.profile.release]
+#wasm-opt = ["-O", "--debug", "--enable-mutable-globals"]
+wasm-opt = ["-O4"]
 
 [[bench]]
 name = "benches"

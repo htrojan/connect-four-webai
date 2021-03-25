@@ -2,7 +2,7 @@
 //!
 
 use rand::prelude::*;
-use crate::BitBoard::{BitBoard, FieldType};
+use crate::board::{BitBoard, FieldType};
 
 /// Implementation of the ['Zobrist'] hash function
 ///

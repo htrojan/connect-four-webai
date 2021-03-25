@@ -1,8 +1,9 @@
 use wasm_bindgen::prelude::*;
 
-use crate::logic;
-use crate::logic::{BOARD_HEIGHT, BOARD_WIDTH};
 
+// Connect four dimensions
+pub const BOARD_WIDTH: usize = 7;
+pub const BOARD_HEIGHT: usize = 6;
 /// Encoding: Column-first-order, 8-bit per column.
 /// That way 2 bits per column (they are 6 fields high) are left unused.
 #[wasm_bindgen]
@@ -387,7 +388,7 @@ struct OpenChains{
 
 #[cfg(test)]
 mod tests {
-    use crate::BitBoard::BitBoard;
+    use crate::board::BitBoard;
     use crate::logic::GameBoard;
 
     #[test]

@@ -1,9 +1,6 @@
-#![feature(crate_visibility_modifier)]
-
 mod utils;
-pub mod logic;
-pub mod BitBoard;
-mod Engine;
+pub mod board;
+mod engine;
 mod transposition;
 
 use wasm_bindgen::prelude::*;
