@@ -389,7 +389,6 @@ struct OpenChains{
 #[cfg(test)]
 mod tests {
     use crate::board::BitBoard;
-    use crate::logic::GameBoard;
 
     #[test]
     fn test_new_score_down_right() {
