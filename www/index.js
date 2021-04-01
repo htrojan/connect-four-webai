@@ -91,7 +91,7 @@ const makeMove = function(row) {
     }
     else {
         console.log("[Earlygame] Solving with heuristic score and depth: 15")
-        move = wasm.solve(board, 15, wasm.SolverType.Strong);
+        move = wasm.solve(board, 17, wasm.SolverType.Strong);
     }
     let t2 = new Date().getTime();
     console.log("Time: ", (t2-t1),"ms, Searched ", move.nodes_searched.toLocaleString(), " Nodes")

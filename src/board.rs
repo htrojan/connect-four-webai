@@ -263,7 +263,7 @@ impl BitBoard {
         // Shifts everything one field up and compares it to the state before.
         // The top positions of each row have been moved up.
         // Therefore all positions showing a difference are positions of the top fields
-        // that have bee moved.
+        // that have been moved.
         let possible = occupied ^ ((occupied<<1) + 1);
         possible & BitBoard::PLAYABLE_FIELDS
     }
@@ -291,6 +291,12 @@ impl BitBoard {
         let opponent = occupied - player;
 
         BitBoard::material_score(player, opponent) - BitBoard::material_score(opponent, player)
+    }
+
+    pub fn heuristic3(&self) -> i32 {
+        let winning_player = BitBoard::winning_spots(self.player) & !self.occupied;
+        let winning_opponent = BitBoard::winning_spots(self.opponent()) & !self.occupied;
+        winning_player.count_ones() as i32 - winning_opponent.count_ones() as i32
     }
 
     #[inline]
@@ -378,6 +384,38 @@ impl BitBoard {
 
         OpenChains { three: chains_three, two: chains_two }
     }
+
+    #[inline]
+    fn winning_spots_helper(player: u64, offset: u64) -> u64 {
+        let mut p = 0;
+        let two_h = (player << offset) & player;
+        p |= (two_h << offset) & (player >> offset);
+        p |= (two_h >> 2*offset) & (player << offset);
+        let three_h = two_h & (two_h << offset);
+        p |= (three_h>>3*offset) | (three_h << offset);
+        p
+    }
+
+    #[inline]
+    fn opponent(&self) -> u64 {
+        self.occupied - self.player
+    }
+
+    pub fn winning_spots(player: u64) -> u64 {
+        // Vertical
+        let mut p = (player << 1) & (player << 2) & (player << 3);
+        // Horizontal
+        p |= BitBoard::winning_spots_helper(player, 8);
+        // Diagonal (up_left)
+        p |= BitBoard::winning_spots_helper(player, 7);
+        // Diagonal (up_right)
+        p |= BitBoard::winning_spots_helper(player, 9);
+        p & BitBoard::PLAYABLE_FIELDS
+    }
+
+    pub fn forced_moves(&self) -> u64 {
+        BitBoard::winning_spots(self.opponent()) & self.all_possible_moves()
+    }
 }
 
 struct OpenChains{
@@ -389,6 +427,49 @@ struct OpenChains{
 #[cfg(test)]
 mod tests {
     use crate::board::BitBoard;
+    const EARLY_01: &str =
+        "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnnpnnn";
+    const EARLY_02: &str =
+        "nnnnnnn
+            nnnnnnn
+            nnnnnnn
+            nnncnnn
+            nnnppnn
+            nnnccnn";
+    const MID_01: &str =
+        "nnnpnnn
+            nnnccnn
+            nnnppnn
+            nnnccnn
+            nnnppnn
+            cnnccnn";
+    const MID_02: &str =
+        "nnnpnnn
+            nnncpnn
+            nnnpcnn
+            nnncpnn
+            npnpcnn
+            ncncpcn";
+
+    #[test]
+    fn test_winning_spots() {
+        let board_01 =
+            "nnnpnnn
+            nnncpnn
+            nnnpcnn
+            nnncpnn
+            npnpcnn
+            ncpppcn";
+        let player = BitBoard::from_string(EARLY_01).unwrap().player;
+        let player2 = BitBoard::from_string(board_01).unwrap().player;
+        assert_eq!(BitBoard::winning_spots(player), 0);
+        assert_eq!(BitBoard::winning_spots(player2).count_ones(), 4)
+    }
 
     #[test]
     fn test_new_score_down_right() {

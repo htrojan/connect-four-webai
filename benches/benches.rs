@@ -1,9 +1,9 @@
 #![feature(test)]
 mod bitboard;
-mod gameboard;
+mod engine;
 
 use criterion::*;
 use bitboard::*;
-use gameboard::*;
+use engine::*;
 
-criterion_main!(bench_bitboard, bench_gameboard);
+criterion_main!(bench_weak_solver);

@@ -1,5 +1,6 @@
 use crate::board::BitBoard;
 use wasm_bindgen::prelude::*;
+use std::cmp::max;
 
 const SEARCH_ORDER: [u64; 7] = [3,2,4,1,5,0,6];
 
@@ -77,6 +78,12 @@ pub fn solve(start: &BitBoard, depth: u8, solver: SolverType) -> SolveResult {
     // return SolveResult::new(0,0)
 }
 
+/// Chooses the first out of multiple possible moves
+fn choose_move(moves: u64) -> u64 {
+    let whitespace = moves.trailing_zeros();
+    let mask = 1<< whitespace;
+    moves & mask
+}
 /// Solves the board using a strong solver BitBoard::is_winning_board()
 /// return score, best_move
 pub fn solve_strong(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, num_nodes: &mut u64) -> (i32, u64) {
@@ -88,37 +95,59 @@ pub fn solve_strong(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, n
 
     // No conclusion found --> draw
     if depth == 0 {
-        let score = start.heuristic_2();
+        let score = start.heuristic3();
         return (score, 0);
     }
 
     let mut max_score = i32::MIN;
     let mut best_move: u64 = 0;
 
-    let possible_moves = start.all_possible_moves();
-
-    for i in &SEARCH_ORDER {
-        let i = *i;
-        let to_play = BitBoard::move_in_row(possible_moves, i);
-
-        // No valid move
-        if to_play == 0 {
-            continue;
+    let forced = start.forced_moves();
+    if forced > 0 {
+        let moves = forced.count_ones();
+        if moves >= 2 {
+            // Game is lost. Only one spot can be taken this turn
+            return (-99 -(depth as i32), choose_move(forced));
         }
-
-        let new_board = start.play_field(to_play);
-        let (score, _) =  solve_strong(new_board, depth-1, -beta, -alpha, num_nodes);
+        let new_board = start.play_field(forced);
+        let (score, _) = solve_weak(new_board, depth - 1, -beta, -alpha, num_nodes);
         let score = -score;
+        best_move = forced;
+        max_score = score;
 
-        if score > max_score {
-            max_score = score;
-            best_move = to_play;
-        }
         alpha = i32::max(alpha, score);
 
         if alpha >= beta {
             // Cutoff!
-            break;
+            // break;
+            // Do nothing now
+        }
+    } else {
+        let possible_moves = start.all_possible_moves();
+
+        for i in &SEARCH_ORDER {
+            let i = *i;
+            let to_play = BitBoard::move_in_row(possible_moves, i);
+
+            // No valid move
+            if to_play == 0 {
+                continue;
+            }
+
+            let new_board = start.play_field(to_play);
+            let (score, _) = solve_strong(new_board, depth - 1, -beta, -alpha, num_nodes);
+            let score = -score;
+
+            if score > max_score {
+                max_score = score;
+                best_move = to_play;
+            }
+            alpha = i32::max(alpha, score);
+
+            if alpha >= beta {
+                // Cutoff!
+                break;
+            }
         }
     }
 
@@ -140,30 +169,53 @@ pub fn solve_weak(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, num
     let mut max_score = i32::MIN;
     let mut best_move: u64 = 0;
 
-    let possible_moves = start.all_possible_moves();
-
-    for i in &SEARCH_ORDER {
-        let i = *i;
-        let to_play = BitBoard::move_in_row(possible_moves, i);
-
-        // No valid move
-        if to_play == 0 {
-            continue;
+    let forced = start.forced_moves();
+    if forced > 0 {
+        let moves = forced.count_ones();
+        if moves >= 2 {
+            // Game is lost. Only one spot can be taken this turn
+            return (- (depth as i32), choose_move(forced));
         }
-
-        let new_board = start.play_field(to_play);
+        let new_board = start.play_field(forced);
         let (score, _) =  solve_weak(new_board, depth-1, -beta, -alpha, num_nodes);
         let score = -score;
 
-        if score > max_score {
-            max_score = score;
-            best_move = to_play;
-        }
         alpha = i32::max(alpha, score);
+        best_move = forced;
+        max_score = score;
 
         if alpha >= beta {
             // Cutoff!
-            break;
+            // break;
+            // Do nothing now
+        }
+
+    } else {
+        let possible_moves = start.all_possible_moves();
+
+        for i in &SEARCH_ORDER {
+            let i = *i;
+            let to_play = BitBoard::move_in_row(possible_moves, i);
+
+            // No valid move
+            if to_play == 0 {
+                continue;
+            }
+
+            let new_board = start.play_field(to_play);
+            let (score, _) = solve_weak(new_board, depth - 1, -beta, -alpha, num_nodes);
+            let score = -score;
+
+            if score > max_score {
+                max_score = score;
+                best_move = to_play;
+            }
+            alpha = i32::max(alpha, score);
+
+            if alpha >= beta {
+                // Cutoff!
+                break;
+            }
         }
     }
 
