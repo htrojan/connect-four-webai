@@ -1,5 +1,5 @@
 [package]
-name = "connect_four"
+name = "c4solver"
 version = "0.1.0"
 authors = ["Hendrik Trojan <h.trojan.github@posteo.de>"]
 license = "MIT"

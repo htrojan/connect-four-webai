@@ -95,7 +95,7 @@ pub fn solve_strong(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, n
 
     // No conclusion found --> draw
     if depth == 0 {
-        let score = start.heuristic_2();
+        let score = start.heuristic3();
         return (score, 0);
     }
 

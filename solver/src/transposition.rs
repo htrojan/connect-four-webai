@@ -69,3 +69,7 @@ impl ZobristHasher {
         }
     }
 }
+
+pub struct HashMap {
+   num_buckets: u32;
+}
