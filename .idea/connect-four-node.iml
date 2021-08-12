@@ -5,9 +5,11 @@
       <sourceFolder url="file://$MODULE_DIR$/solver/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/solver/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ai/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cli/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/solver/target" />
       <excludeFolder url="file://$MODULE_DIR$/ai/target" />
+      <excludeFolder url="file://$MODULE_DIR$/cli/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
