@@ -44,21 +44,14 @@ jobs:
         shell: bash
         run: |
           SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
-          echo "::set-output name=sha::${{ secrets.DIGITALOCEAN_DOCKER_REPO }}/connect-four:$SHORT_SHA"
-      - name: Register doctl
-        uses: digitalocean/action-doctl@v2.1.0
-        with:
-          token: ${{ secrets.DIGITALOCEAN_API }}
+          echo "::set-output name=sha::htrojan/connect-four:$SHORT_SHA"
       - name: Change directory
         run: cd www
       - name: Build dockerfile
         shell: bash
         working-directory: ./www
-        run: docker build -t ${{ secrets.DIGITALOCEAN_DOCKER_REPO }}/connect-four:latest -t ${{ steps.image_tags.outputs.sha }} .
-      - name: Login to registry
-        shell: bash
-        run: doctl registry login --expiry-seconds 600
+        run: docker build -t htrojan/connect-four:latest -t ${{ steps.image_tags.outputs.sha }} .
       - name: Upload image to registry
         shell: bash
-        run: docker push ${{ secrets.DIGITALOCEAN_DOCKER_REPO }}/connect-four
+        run: docker push ghcr.io/htrojan/connect-four:latest
 
