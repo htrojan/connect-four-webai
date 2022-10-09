@@ -1,5 +1,6 @@
 [target.wasm32-unknown-unknown]
 linker = "rust-lld"
+runner = "wasm-server-runner"
 
 [target.x86_64-pc-windows-msvc]
 #linker = "rust-lld"
