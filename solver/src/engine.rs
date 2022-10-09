@@ -127,7 +127,7 @@ pub fn solve_strong(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, n
 
         for i in &SEARCH_ORDER {
             let i = *i;
-            let to_play = BitBoard::move_in_row(possible_moves, i);
+            let to_play = BitBoard::move_in_col(possible_moves, i);
 
             // No valid move
             if to_play == 0 {
@@ -195,7 +195,7 @@ pub fn solve_weak(start: BitBoard, depth: u8, mut alpha: i32, mut beta: i32, num
 
         for i in &SEARCH_ORDER {
             let i = *i;
-            let to_play = BitBoard::move_in_row(possible_moves, i);
+            let to_play = BitBoard::move_in_col(possible_moves, i);
 
             // No valid move
             if to_play == 0 {

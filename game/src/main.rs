@@ -1,12 +1,18 @@
 use std::cmp::min;
+use std::ops::Mul;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology};
 use bevy::sprite::Material2d;
+use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::window::{close_on_esc, WindowResized};
+use futures_lite::future;
+use c4solver::board::{BitBoard, FieldType};
+use c4solver::engine::{SolveResult, SolverType};
 
-const COLS: u32 = 7;
-const ROWS: u32 = 6;
+const COLS: u32 = c4solver::board::BOARD_WIDTH as u32;
+const ROWS: u32 = c4solver::board::BOARD_HEIGHT as u32;
 
 fn main() {
     App::new()
@@ -14,12 +20,46 @@ fn main() {
         .add_plugin(LogDiagnosticsPlugin::default())
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(setup)
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(run_if_player_turn)
+                .with_system(player_control_system)
+        )
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(run_if_computer_turn)
+                .with_system(computer_task_system)
+        )
         .add_system(highlight_system)
-        .add_system(stone_spawn_system)
         .add_system(stone_moving_system)
         .add_system(resize_handler)
         .add_system(close_on_esc)
         .run();
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum MultiplayerKind {
+    Player,
+    Computer,
+    End,
+}
+
+fn run_if_player_turn(mode: Res<MultiplayerKind>, mut query: Query<&Stone>) -> ShouldRun {
+    let moving = query.iter().any(|x| x.moving);
+    if *mode == MultiplayerKind::Player && !moving {
+        ShouldRun::Yes
+    } else {
+        ShouldRun::No
+    }
+}
+
+fn run_if_computer_turn(mode: Res<MultiplayerKind>, mut query: Query<&Stone>) -> ShouldRun {
+    let moving = query.iter().any(|x| x.moving);
+    if *mode == MultiplayerKind::Computer && !moving {
+        ShouldRun::Yes
+    } else {
+        ShouldRun::No
+    }
 }
 
 #[derive(Component)]
@@ -32,14 +72,14 @@ struct HighlightColumn {
 
 enum Player {
     Player1,
-    Player2
+    Player2,
 }
 
 struct BoardAssets {
     highlight_size: Vec2,
     left_coord: f32,
     mesh_handle: Handle<Mesh>,
-    // board: [[Player; COLS as usize]; ROWS as usize]
+    board: BitBoard,
 }
 
 impl BoardAssets {
@@ -47,7 +87,7 @@ impl BoardAssets {
         let down_coord = -self.highlight_size.y / 2.;
 
         let x_pos = self.left_coord + game_position.x as f32 * self.highlight_size.x;
-        let y_pos = down_coord + game_position.y as f32 * (self.highlight_size.y / ROWS as f32);
+        let y_pos = down_coord + (game_position.y as f32 + 0.5) * (self.highlight_size.y / ROWS as f32);
         Vec2::new(x_pos, y_pos)
     }
 }
@@ -73,6 +113,10 @@ struct StoneAssets {
     mat_handle: [Handle<ColorMaterial>; 2],
     mesh_handle: Handle<Mesh>,
 }
+
+/// Returns the move the engine calculated
+#[derive(Component)]
+struct ComputeNextMove(Task<SolveResult>);
 
 impl From<BoardShape> for Mesh {
     fn from(board: BoardShape) -> Self {
@@ -116,8 +160,54 @@ fn setup_board(mut commands: Commands, mut windows: ResMut<Windows>, mut meshes:
     shape::Quad::default();
 }
 
+fn computer_task_system(mut commands: Commands,
+                        mut compute_tasks: Query<(Entity, &mut ComputeNextMove)>,
+                        mut board: ResMut<BoardAssets>, mut game: ResMut<MultiplayerKind>,
+                        stone_meta: Res<StoneAssets>) {
+    let count = compute_tasks.iter().count();
+    if count > 0 {
+        for (entity, mut task) in &mut compute_tasks {
+            if let Some(next_move) = future::block_on(future::poll_once(&mut task.0)) {
+                info!("Next move = {:?}", next_move);
+                commands.entity(entity).remove::<ComputeNextMove>();
+                let coords = BitBoard::move_to_coords(next_move.mov);
+                if let Some(coords) = coords {
+                    board.board.set_at(next_move.mov, Some(FieldType::Player));
+
+                    info!("Coords = ({}, {})", coords.0, coords.1);
+                    let xpos = coords.0 as f32 * board.highlight_size.x + board.left_coord;
+                    commands.spawn_bundle(ColorMesh2dBundle {
+                        mesh: stone_meta.mesh_handle.clone().into(),
+                        material: stone_meta.mat_handle[1].clone().into(),
+                        transform: Transform::from_xyz(xpos, board.highlight_size.y / 2., 10.),
+                        ..default()
+                    }).insert(Stone {
+                        moving: true,
+                        velocity: -1000.,
+                        board_position: UVec2::new(coords.0, coords.1),
+                    });
+
+                    *game = MultiplayerKind::Player;
+                } else {
+                    *game = MultiplayerKind::End;
+                }
+            }
+        }
+    } else {
+        let thread_pool = AsyncComputeTaskPool::get();
+        let b = board.board.clone();
+        let task = thread_pool.spawn(async move {
+            c4solver::engine::solve(&b, 17, SolverType::Strong)
+        });
+        commands.spawn().insert(ComputeNextMove(task));
+
+        info!("Spawned compute task!");
+    }
+}
+
 fn setup(mut commands: Commands, mut windows: ResMut<Windows>, mut meshes: ResMut<Assets<Mesh>>,
          mut materials: ResMut<Assets<ColorMaterial>>) {
+    commands.insert_resource(MultiplayerKind::Player);
     let window = windows.get_primary_mut().unwrap();
 
     let width = window.width();
@@ -171,6 +261,7 @@ fn setup(mut commands: Commands, mut windows: ResMut<Windows>, mut meshes: ResMu
             highlight_size,
             left_coord,
             mesh_handle: board_mesh,
+            board: BitBoard::default(),
         }
     );
 
@@ -235,23 +326,31 @@ fn highlight_system(windows: Res<Windows>, mut query: Query<(&mut HighlightColum
     }
 }
 
-fn stone_spawn_system(mut commands: Commands, stone_meta: Res<StoneAssets>, mouse: Res<Input<MouseButton>>,
-                      mut query: Query<&HighlightColumn>, meta: Res<BoardAssets>, windows: Res<Windows>) {
+fn player_control_system(mut commands: Commands, stone_meta: Res<StoneAssets>, mouse: Res<Input<MouseButton>>,
+                         mut query: Query<&HighlightColumn>, mut meta: ResMut<BoardAssets>, windows: Res<Windows>,
+                         mut state: ResMut<MultiplayerKind>) {
     if mouse.just_pressed(MouseButton::Left) {
         let height = windows.primary().height();
         let col = query.single().number;
         let xpos = col as f32 * meta.highlight_size.x + meta.left_coord;
 
-        commands.spawn_bundle(ColorMesh2dBundle {
-            mesh: stone_meta.mesh_handle.clone().into(),
-            material: stone_meta.mat_handle[0].clone().into(),
-            transform: Transform::from_xyz(xpos, height / 2., 10.),
-            ..default()
-        }).insert(Stone {
-            moving: true,
-            velocity: -300.,
-            board_position: UVec2::new(col, 0),
-        });
+        let pos = meta.board.stone_position(col as u64);
+        if let Some(row) = pos {
+            info!("Col = {:?}", pos);
+            // The opponent is the human player. We are the computer!
+            meta.board = meta.board.play_column(col as u8, FieldType::Opponent).unwrap();
+            commands.spawn_bundle(ColorMesh2dBundle {
+                mesh: stone_meta.mesh_handle.clone().into(),
+                material: stone_meta.mat_handle[0].clone().into(),
+                transform: Transform::from_xyz(xpos, height / 2., 10.),
+                ..default()
+            }).insert(Stone {
+                moving: true,
+                velocity: -1000.,
+                board_position: UVec2::new(col, row as u32),
+            });
+            *state = MultiplayerKind::Computer;
+        }
     }
 }
 
@@ -263,6 +362,7 @@ fn stone_moving_system(mut query: Query<(&mut Transform, &mut Stone)>, time: Res
             let goal_pos = board.stone_position(stone.board_position);
             // info!("goal_pos = {:?}", goal_pos);
             if t.translation.y <= goal_pos.y {
+                t.translation.y = goal_pos.y;
                 stone.moving = false;
             }
         }
