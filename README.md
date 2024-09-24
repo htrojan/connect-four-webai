@@ -1,6 +1,6 @@
 # connect-four-webai
 A small connect-four ai written in rust/webassembly.
-Currently hosted at [lobbi44.me](https://lobbi44.me).
+Currently hosted at [lobbi44.de](https://lobbi44.me).
 
 Uses alpha-beta pruning to estimate the best move of the computer.
 Depending on the number of stones on the field, two variations are used:
