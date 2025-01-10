@@ -18,7 +18,9 @@ jobs:
         rustup install nightly
         rustup default nightly
     - name: Run tests
-      run: cargo test --verbose
+      run: |
+        cd solver
+        cargo test --verbose
     - name: setup wasm-pack
       uses: jetli/wasm-pack-action@v0.3.0
     - name: setup-node
