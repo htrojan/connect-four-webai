@@ -41,6 +41,6 @@ jobs:
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add www/dist
+        git add www/dist -f
         git commit -m 'Deploy to GitHub Pages'
         git push origin `git subtree split --prefix www/dist main`:gh-pages --force
