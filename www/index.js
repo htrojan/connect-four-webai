@@ -1,5 +1,5 @@
-import * as wasm from "../pkg"
-import {BitBoard, FieldType} from "../pkg";
+import * as wasm from "../solver/pkg"
+import {BitBoard, FieldType} from "../solver/pkg";
 
 
 
