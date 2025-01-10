@@ -1,10 +1,7 @@
 name: Rust
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -32,7 +29,15 @@ jobs:
         npm install
         npm run build
     - name: upload artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with: 
         name: build_artifact
         path: www/dist/
+
+    - name: Deploy to GitHub Pages
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add www/dist
+        git commit -m 'Deploy to GitHub Pages'
+        git push origin `git subtree split --prefix www/dist main`:gh-pages --force
