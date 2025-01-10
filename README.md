@@ -1,6 +1,7 @@
 # connect-four-webai
 A small connect-four ai written in rust/webassembly.
-Currently hosted at [lobbi44.de](https://lobbi44.me).
+Currently hosted at https://htrojan.github.io/connect-four-webai/
+The provided Dockerfile provides an easy way to bundle this website together with an nginx server such that it can be deployed on a private server.
 
 Uses alpha-beta pruning to estimate the best move of the computer.
 Depending on the number of stones on the field, two variations are used:
