@@ -248,7 +248,7 @@ mod tests {
             nnnnnnn
             nnnpnnn
             nnnnnnn";
-        let best_move_easy = BitBoard::from_string(best_move_easy).unwrap().player;
+        let best_move_easy = BitBoard::from_string(best_move_easy).unwrap().get_player_bit_repr();
 
         println!("{}", result.score);
         assert_eq!(best_move_easy, result.mov)
@@ -274,7 +274,7 @@ mod tests {
             nnnnnnn
             nnnnnnn
             nnnnnnn";
-        let best_move_easy = BitBoard::from_string(best_move_easy).unwrap().player;
+        let best_move_easy = BitBoard::from_string(best_move_easy).unwrap().get_player_bit_repr();
 
         println!("Score: {}", result.score);
         println!("Move: {}", result.mov);

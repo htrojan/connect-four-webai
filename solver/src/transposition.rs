@@ -1,9 +1,6 @@
 //! Hash methods and HashTable for a transposition table
 //!
 
-use std::alloc::{Allocator, Global, Layout};
-use std::marker::PhantomData;
-use std::ptr::NonNull;
 
 use rand::prelude::*;
 
@@ -22,7 +19,7 @@ impl ZobristHasher {
         let mut table_p1 = [0; 42];
         let mut table_p2 = [0; 42];
 
-        let mut rnd = rand::rngs::StdRng::seed_from_u64(42);
+        let mut rnd = StdRng::seed_from_u64(42);
 
         for i in 0..42 {
             table_p1[i] = rnd.next_u64();
@@ -32,22 +29,15 @@ impl ZobristHasher {
         ZobristHasher { table_p1, table_p2 }
     }
 
-    pub fn hash_board(&self, board: BitBoard) {
-        let player1 = board.player;
-        let player2 = board.occupied - board.player;
-
+    pub fn hash_board(&self, board: &BitBoard) {
         let mut hash = 0;
 
-        for i in 0..42 {
-            // Convert index to actual bit position
-            let row = i % 6;
-            let column = i / 6;
-            let bit_pos = column * 8 + row;
-
-            if player1 & (1 << bit_pos) > 0 {
-                hash ^= self.table_p1[bit_pos];
-            } else if player2 & (1 << bit_pos) > 0 {
-                hash ^= self.table_p2[bit_pos];
+        for field in board.field_iter() {
+            if board.is_occupied_by_player_at_field(&field) {
+                hash ^= self.table_p1[field.get_index() as usize];
+            } else if board.is_occupied_at_field(&field) {
+                // Occupied by player2
+                hash ^= self.table_p2[field.get_index() as usize];
             }
         }
     }
@@ -74,165 +64,93 @@ impl ZobristHasher {
     }
 }
 
-/// An SwissTable/Hashbrown inspired rudimentary hashmap implementation.
-/// Most code is taken and heavily broken down and adapted from ['rust-lang/hashbrown']
-/// This implementation has a constant size and employs a replacement strategy
-/// when full or when above a certain load factor(?).
-/// Additionally, only BitBoards can be stored. No generic interface is provided.
-/// todo: Replacement strategy description
-/// Additional resources:
-/// - ['The Swiss Army Knife of Hashmaps']
-/// - ['rust-lang/hashbrown']
-///
-/// ['The Swiss Army Knife of Hashmaps']: https://blog.waffles.space/2018/12/07/deep-dive-into-hashbrown/
-/// ['rust-lang/hashbrown']: https://github.com/rust-lang/hashbrown
-pub struct TMap<A: Allocator> {
-    raw_table: RawTable<A>,
+/// A transposition table for the solver
+/// The table is implemented as a hash map with linear probing.
+/// It stores the hashes in a vector and the corresponding scores in another vector, where
+/// the indices of both vectors correspond to each other.
+/// Therefore if a hash is found in the hash vector, the corresponding score can be found
+/// in the score vector at the same index.
+struct TranspositionTable<T: Sized + Default + Clone> {
+    max_size: usize,
+    max_load_factor: f32,
+    bucket_size: usize,
+    num_entries: usize,
+
+    hashes: Vec<u64>,
+    entries: Vec<T>,
 }
 
-impl TMap<Global> {
-    fn new(buckets: usize) -> Result<Self, AllocationError> {
-        let table = match unsafe { RawTable::new_in(Global, buckets) } {
-            Ok(table) => table,
-            Err(_) => {
-                return Err(AllocationError {});
+impl<T: Sized + Default + Clone> TranspositionTable<T> {
+    pub fn new(max_size: usize, max_load_factor: f32) -> TranspositionTable<T> {
+        TranspositionTable {
+            max_size,
+            max_load_factor,
+            num_entries: 0,
+            bucket_size: 10,
+            hashes: vec![0; max_size],
+            entries: vec![T::default(); max_size],
+        }
+    }
+
+    /// Inserts a new entry into the table
+    /// If the table is full, the oldest entry is overwritten
+    pub fn insert(&mut self, hash: u64, score: T) {
+        if self.hashes.len() == self.max_size {
+            self.hashes.remove(0);
+            self.entries.remove(0);
+        }
+
+        // Search for the correct position
+        let mut pos = hash % self.bucket_size as u64;
+        if self.hashes[pos as usize] != 0 {
+            // Collision
+            // Linear probing
+            while self.hashes[pos as usize] != 0 {
+                pos = (pos + 1) % self.bucket_size as u64;
             }
-        };
-        Ok(Self { raw_table: table })
+        }
+
+        self.hashes[pos as usize] = hash;
+        self.entries[pos as usize] = score;
+        self.num_entries += 1;
+
     }
-}
 
-/// Internally used to store the BitBoard together with additional information used
-/// for the replacement strategy.
-struct TEntry {
-    /// The actual data board to be stored in the hashmap.
-    board: BitBoard,
-    /// The associated score
-    score: i32,
-    /// Used to differentiate 'hot' from 'cold' entries and replace the cold ones if memory is needed.
-    depth: u8,
-}
-
-/// Hides unsafe code from the public TMap interface
-struct RawTable<A: Allocator> {
-    /// Number of buckets. This is a multiple of 16 (multiple of group size)
-    buckets: usize,
-
-    /// Pointer to the control struct holding the array of 8-bit control entries
-    ctrl: NonNull<u8>,
-
-    /// Number of elements in the table
-    items: usize,
-
-    /// Tells the drop checker that this table owns the BitBoard entries
-    marker: PhantomData<BitBoard>,
-
-    alloc: A,
-}
-
-struct AllocationError {}
-
-impl<A: Allocator + Clone> RawTable<A> {
-    pub unsafe fn new_in(alloc: A, buckets: usize) -> Result<Self, AllocationError> {
-        // Make buckets power of two
-        let buckets = buckets.next_power_of_two();
-
-        // Calculate layout
-        let (layout, ctrl_offset) = TableLayout::calculate_layout(buckets);
-        println!("Table layout: {:?}", layout);
-        println!("Ctrl offset: {:?}", ctrl_offset);
-
-        let ptr: NonNull<u8> = match do_alloc(&alloc, layout) {
-            Ok(block) => block.cast(),
-            Err(_) => {
-                return Err(AllocationError {});
+    /// Returns the score for the given hash if it exists in the table
+    pub fn get(&self, hash: u64) -> Option<T> {
+        for (i, h) in self.hashes.iter().enumerate() {
+            if *h == hash {
+                return Some(self.entries[i].clone());
             }
-        };
+        }
 
-        Ok(Self {
-            buckets,
-            ctrl: NonNull::new_unchecked(ptr.as_ptr().add(ctrl_offset)),
-            items: 0,
-            marker: PhantomData,
-            alloc,
-        })
+        None
     }
 
-    pub fn insert(&self, entry: TEntry, hash: u64) {
-        let bucket = h1(hash) % self.buckets;
-
-        let index = self.probe_for(hash);
+    /// Returns the load factor of the table
+    pub fn load_factor(&self) -> f32 {
+        self.num_entries as f32 / self.max_size as f32
     }
 
-    /// Probes the control sequence for the specified hash
-    fn probe_for(&self, hash: u64) -> usize {
-        //todo: can be made faster using bitmasks and power of two bucket size
-        let bucket = h1(hash) % self.buckets;
-        todo!("Not implemented")
+    pub fn is_full(&self) -> bool {
+        self.load_factor() >= self.max_load_factor
     }
-}
 
-/// Returns the h1 hash (for 32 bit platforms)
-#[inline]
-fn h1(hash: u64) -> usize{
-    hash as usize
-}
-
-/// Returns the top 7 bits of the has to be saved in the low 7 bits of the control byte
-#[inline]
-fn h2(hash: u64) -> u8 {
-    // Shift the bits so that the top 7 bits are the only bits left
-    let bit_shift = 64 - 7;
-    let h2 = hash >> bit_shift;
-    h2 as u8
-}
-
-#[allow(clippy::map_err_ignore)]
-pub fn do_alloc<A: Allocator>(alloc: &A, layout: Layout) -> Result<NonNull<u8>, ()> {
-    alloc
-        .allocate(layout)
-        .map(|ptr| ptr.as_non_null_ptr())
-        .map_err(|_| ())
-}
-
-/// Struct representing a set of bytes from the control structure.
-/// This is done without the SIMD feature (not sure if this code would benefit due to
-/// latency reasons of the sse instructions)
-/// TODO: Test in the future
-struct Group {}
-
-impl Group {
-    const WIDTH: usize = 8;
-
-    /// Loads Group::WIDTH control bytes from memory. The offset given has to be aligned
-    /// to the group size.
-    fn load(ptr: *mut u8) {
-
+    pub fn is_empty(&self) -> bool {
+        self.num_entries == 0
     }
-}
 
-struct TableLayout {}
-
-impl TableLayout {
-    /// Returns the layout needed to create the buckets followed by the control
-    /// structure.
-    /// The offset is given in bytes
-    fn calculate_layout(buckets: usize) -> (Layout, usize) {
-        assert_eq!(buckets % Group::WIDTH, 0);
-
-        let layout_entries = Layout::new::<TEntry>().repeat(buckets).unwrap();
-        let layout_ctrl = Layout::new::<u8>().repeat(buckets).unwrap();
-        println!("Entry layout: {:?}", Layout::new::<TEntry>());
-        layout_entries.0.extend(layout_ctrl.0).unwrap()
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::transposition::TMap;
+    use super::*;
 
     #[test]
-    fn test_table_init() {
-        let table = TMap::new(10e5 as usize);
+    pub fn test_insert() {
+        let mut map = TranspositionTable::new(10, 0.8);
+        assert_eq!(map.load_factor(), 0.0);
+        map.insert(1, 1);
+        assert_eq!(map.load_factor(), 0.1);
     }
 }
