@@ -1,9 +1,7 @@
-#![feature(test)]
-
 use criterion::*;
-use connect_four::board::BitBoard;
+use c4solver::board::BitBoard;
 use std::hint::black_box;
-use connect_four::engine::*;
+use c4solver::engine::*;
 
 const EARLY_01: &str =
            "nnnnnnn

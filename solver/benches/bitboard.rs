@@ -1,7 +1,6 @@
-#![feature(test)]
 
 use criterion::*;
-use connect_four::board::BitBoard;
+use c4solver::board::BitBoard;
 use std::hint::black_box;
 
 pub fn bench_winning_move(crit: &mut Criterion) {
@@ -22,7 +21,7 @@ pub fn bench_winning_move(crit: &mut Criterion) {
             nnnnnnn
             nnnnnnn
             nnnnnnn";
-    let position = BitBoard::from_string(player_move).unwrap().player;
+    let position = BitBoard::from_string(player_move).unwrap().get_player_bit_repr();
 
     crit.bench_function("winning_move_01", |b| b.iter( || bits_1.is_winning_move(black_box(position))));
 }

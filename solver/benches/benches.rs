@@ -1,4 +1,3 @@
-#![feature(test)]
 mod bitboard;
 mod engine;
 
