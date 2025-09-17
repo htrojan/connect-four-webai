@@ -1,8 +1,8 @@
 //! Hash methods and HashTable for a transposition table
 //!
 
-
 use rand::prelude::*;
+use std::collections::VecDeque;
 
 use crate::board::{BitBoard, FieldType};
 
@@ -68,16 +68,31 @@ impl ZobristHasher {
 /// The table is implemented as a hash map with linear probing.
 /// It stores the hashes in a vector and the corresponding scores in another vector, where
 /// the indices of both vectors correspond to each other.
-/// Therefore if a hash is found in the hash vector, the corresponding score can be found
+/// Therefore, if a hash is found in the hash vector, the corresponding score can be found
 /// in the score vector at the same index.
 struct TranspositionTable<T: Sized + Default + Clone> {
+    ///Reserved size in number of entries. Does not correspond to the
+    /// Number of stored entries, as the load factor will be kept below max_load_factor
     max_size: usize,
+
+    /// Maximum load factor. The load factor is actual entries / size.
+    /// Kept low to decrease chance of hash collisions
     max_load_factor: f32,
-    bucket_size: usize,
+
+    /// Current number of entries in the table
     num_entries: usize,
 
-    hashes: Vec<u64>,
+    /// Maximum depth currently stored in the table
+    max_encountered_depth: u8,
+
+    /// Physical entries
     entries: Vec<T>,
+
+    /// Vector of hashes. Used to resolve hash collisions
+    hashes: Vec<Option<u64>>,
+
+    /// Stores depth information about a position. 0 means, it is unitialized
+    depths: Vec<u8>,
 }
 
 impl<T: Sized + Default + Clone> TranspositionTable<T> {
@@ -86,42 +101,59 @@ impl<T: Sized + Default + Clone> TranspositionTable<T> {
             max_size,
             max_load_factor,
             num_entries: 0,
-            bucket_size: 10,
-            hashes: vec![0; max_size],
             entries: vec![T::default(); max_size],
+            hashes: vec![None; max_size],
+            depths: vec![0; max_size],
+            max_encountered_depth: 0,
         }
+    }
+
+    pub fn get_load_factor(&self) -> f32 {
+        self.num_entries as f32 / self.max_size as f32
+    }
+
+    /// Removes x entries from the table
+    fn replacement_strategy() {
+        todo!("Implement replacement strategy for old entries");
     }
 
     /// Inserts a new entry into the table
     /// If the table is full, the oldest entry is overwritten
-    pub fn insert(&mut self, hash: u64, score: T) {
-        if self.hashes.len() == self.max_size {
-            self.hashes.remove(0);
-            self.entries.remove(0);
+    pub fn insert(&mut self, hash: u64, score: T, depth: u8) {
+        if self.get_load_factor() > self.max_load_factor {
+            Self::replacement_strategy();
         }
 
         // Search for the correct position
-        let mut pos = hash % self.bucket_size as u64;
-        if self.hashes[pos as usize] != 0 {
-            // Collision
-            // Linear probing
-            while self.hashes[pos as usize] != 0 {
-                pos = (pos + 1) % self.bucket_size as u64;
-            }
+        let mut pos = hash % self.max_size as u64;
+
+        // If entry collides, search next free entry
+        while (self.hashes[pos as usize].is_some()) {
+            // Prevent overflow. todo: Maybe introduce a size check in loop and remove modulo
+            pos = (pos + 1) % self.max_size as u64;
         }
 
-        self.hashes[pos as usize] = hash;
         self.entries[pos as usize] = score;
+        self.hashes[pos as usize] = Some(hash);
+        self.depths[pos as usize] = depth;
         self.num_entries += 1;
-
     }
 
     /// Returns the score for the given hash if it exists in the table
-    pub fn get(&self, hash: u64) -> Option<T> {
-        for (i, h) in self.hashes.iter().enumerate() {
-            if *h == hash {
-                return Some(self.entries[i].clone());
+    pub fn get_mut(&mut self, hash: u64) -> Option<&mut T> {
+        let bucket = (hash % self.max_size as u64);
+        let mut pos = bucket;
+
+        while let Some(current_hash) = self.hashes[pos as usize] {
+            if current_hash == hash {
+                return Some(&mut self.entries[pos as usize]);
             }
+
+            // Detect a bucket change. The entry was not in this bucket
+            if (current_hash % self.max_size as u64) != bucket {
+                return None;
+            }
+            pos = (pos + 1) % self.max_size as u64;
         }
 
         None
@@ -139,7 +171,6 @@ impl<T: Sized + Default + Clone> TranspositionTable<T> {
     pub fn is_empty(&self) -> bool {
         self.num_entries == 0
     }
-
 }
 
 #[cfg(test)]
@@ -149,8 +180,9 @@ mod tests {
     #[test]
     pub fn test_insert() {
         let mut map = TranspositionTable::new(10, 0.8);
-        assert_eq!(map.load_factor(), 0.0);
-        map.insert(1, 1);
-        assert_eq!(map.load_factor(), 0.1);
+        map.insert(1, 1, 0);
+        map.insert(11, 2, 0);
+        assert_eq!(map.get_mut(1), Some(&mut 1));
+        assert_eq!(map.get_mut(11), Some(&mut 2));
     }
 }
