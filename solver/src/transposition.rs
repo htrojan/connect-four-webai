@@ -75,10 +75,6 @@ struct TranspositionTable<T: Sized + Default + Clone> {
     /// Number of stored entries, as the load factor will be kept below max_load_factor
     max_size: usize,
 
-    /// Maximum load factor. The load factor is actual entries / size.
-    /// Kept low to decrease chance of hash collisions
-    max_load_factor: f32,
-
     /// Current number of entries in the table
     num_entries: usize,
 
@@ -93,13 +89,14 @@ struct TranspositionTable<T: Sized + Default + Clone> {
 
     /// Stores depth information about a position. 0 means, it is unitialized
     depths: Vec<u8>,
+
 }
 
-impl<T: Sized + Default + Clone> TranspositionTable<T> {
-    pub fn new(max_size: usize, max_load_factor: f32) -> TranspositionTable<T> {
+
+impl<T: Clone + Default + Sized> TranspositionTable<T> {
+    pub fn new(max_size: usize) -> TranspositionTable<T> {
         TranspositionTable {
             max_size,
-            max_load_factor,
             num_entries: 0,
             entries: vec![T::default(); max_size],
             hashes: vec![None; max_size],
@@ -120,23 +117,40 @@ impl<T: Sized + Default + Clone> TranspositionTable<T> {
     /// Inserts a new entry into the table
     /// If the table is full, the oldest entry is overwritten
     pub fn insert(&mut self, hash: u64, score: T, depth: u8) {
-        if self.get_load_factor() > self.max_load_factor {
-            Self::replacement_strategy();
-        }
 
         // Search for the correct position
-        let mut pos = hash % self.max_size as u64;
+        let pos = hash % self.max_size as u64;
 
-        // If entry collides, search next free entry
-        while (self.hashes[pos as usize].is_some()) {
-            // Prevent overflow. todo: Maybe introduce a size check in loop and remove modulo
-            pos = (pos + 1) % self.max_size as u64;
+        println!("Position: {}", pos);
+
+        // If pos collides, try 5 times at an incremented position
+        let mut max = self.hashes[pos as usize];
+        let mut max_index: usize = 0;
+        const MAX_INDEX: usize = 5;
+
+        for i in 0..MAX_INDEX    {
+            if self.hashes[pos as usize + i].is_none() {
+                self.entries[pos as usize + i] = score;
+                self.hashes[pos as usize + i] = Some(hash);
+                self.depths[pos as usize + i] = depth;
+                self.num_entries += 1;
+                break;
+            } else {
+                if self.hashes[pos as usize + i].unwrap() > max_index as u64 {
+                    max = max.max(self.hashes[pos as usize + i]);
+                    max_index = i;
+                }
+                // Last iteration
+                if i == MAX_INDEX - 1 {
+                    self.entries[pos as usize + max_index] = score;
+                    self.hashes[pos as usize + max_index] = Some(hash);
+                    self.depths[pos as usize + max_index] = depth;
+                    self.num_entries += 1;
+                    break;
+                }
+            }
         }
 
-        self.entries[pos as usize] = score;
-        self.hashes[pos as usize] = Some(hash);
-        self.depths[pos as usize] = depth;
-        self.num_entries += 1;
     }
 
     /// Returns the score for the given hash if it exists in the table
@@ -144,13 +158,15 @@ impl<T: Sized + Default + Clone> TranspositionTable<T> {
         let bucket = (hash % self.max_size as u64);
         let mut pos = bucket;
 
+        let mut traversed = 0;
         while let Some(current_hash) = self.hashes[pos as usize] {
             if current_hash == hash {
                 return Some(&mut self.entries[pos as usize]);
             }
+            traversed += 1;
 
             // Detect a bucket change. The entry was not in this bucket
-            if (current_hash % self.max_size as u64) != bucket {
+            if (traversed) == 5 {
                 return None;
             }
             pos = (pos + 1) % self.max_size as u64;
@@ -164,10 +180,6 @@ impl<T: Sized + Default + Clone> TranspositionTable<T> {
         self.num_entries as f32 / self.max_size as f32
     }
 
-    pub fn is_full(&self) -> bool {
-        self.load_factor() >= self.max_load_factor
-    }
-
     pub fn is_empty(&self) -> bool {
         self.num_entries == 0
     }
@@ -179,7 +191,34 @@ mod tests {
 
     #[test]
     pub fn test_insert() {
-        let mut map = TranspositionTable::new(10, 0.8);
+        let mut map = TranspositionTable::new(10);
+        map.insert(1, 1, 0);
+        map.insert(11, 2, 0);
+        assert_eq!(map.get_mut(1), Some(&mut 1));
+        assert_eq!(map.get_mut(11), Some(&mut 2));
+    }
+
+    #[test]
+    pub fn test_replacement_strategy() {
+        let mut map = TranspositionTable::new(10);
+        map.insert(1, 1, 1);
+        map.insert(2, 1, 1);
+        map.insert(3, 1, 1);
+        map.insert(4, 1, 1);
+        map.insert(5, 1, 1);
+        map.insert(6, 1, 1);
+        map.insert(7, 1, 1);
+        map.insert(8, 1, 1);
+        map.insert(9, 1, 1);
+        map.insert(10, 1, 1);
+
+        map.insert(11, 2, 0);
+        assert_eq!(map.get_mut(11), Some(&mut 2));
+    }
+
+    #[test]
+    pub fn test_get() {
+        let mut map = TranspositionTable::new(10);
         map.insert(1, 1, 0);
         map.insert(11, 2, 0);
         assert_eq!(map.get_mut(1), Some(&mut 1));
